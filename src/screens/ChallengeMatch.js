@@ -7,7 +7,6 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import axios from "axios";
 import api from "../utils/api";
 export default function ChallengeMatch({ navigation }) {
   const [matchType, setMatchType] = useState("SINGLES");
@@ -24,18 +23,20 @@ export default function ChallengeMatch({ navigation }) {
         }),
       });
 
-      const room = await response.json();
-      console.log("match created id-> ",room.matchId)
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        Alert.alert("Error", data.message || "Failed to create room");
+        return;
+      }
+
+      console.log("match created id-> ", data.matchId);
       navigation.navigate("Challenge-Room", {
-        matchId: room.matchId,
+        matchId: data.matchId,
       });
     } catch (error) {
       console.log(error);
-
-      Alert.alert(
-        "Error",
-        error?.response?.data?.message || "Failed to create room"
-      );
+      Alert.alert("Error", "Network error or server is down");
     } finally {
       setLoading(false);
     }

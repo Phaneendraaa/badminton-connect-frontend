@@ -39,18 +39,22 @@ export default function ChallengeRoom({ route }) {
           phoneNumber: "+91"+mobile,
         }),
       });
-    
-      const user = await response.json();
-      console.log("User searched found ->",user);
-      setSearchedUser(user);
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || "No user found with this mobile number");
+      }
+
+      console.log("User searched found ->", data);
+      setSearchedUser(data);
     } catch (error) {
       console.log(error);
       setSearchedUser(null);
 
       Alert.alert(
         "Not Found",
-        "No user found with this mobile number",
-        error
+        error.message || "No user found with this mobile number"
       );
     } finally {
       setSearching(false);
@@ -69,22 +73,19 @@ export default function ChallengeRoom({ route }) {
         }),
       });
 
-  Alert.alert("Success", data.message);
+      const data = await response.json().catch(() => ({}));
 
-} catch (error) {
-    if (error.response) {
-      const { status, data } = error.response;
-
-      if (status === 409) {
-        Alert.alert('Already Exists', data.message);
-        return;
+      if (response.ok) {
+        Alert.alert("Success", data.message || "Invite sent successfully");
+      } else if (response.status === 409) {
+        Alert.alert("Already Exists", data.message || "This player has already been invited");
+      } else {
+        Alert.alert("Error", data.message || "Something went wrong");
       }
-
-      // handle other status codes (400, 500, etc.)
-      Alert.alert('Error', data.message || 'Something went wrong');
-    }
-}
-    finally {
+    } catch (error) {
+      console.log(error);
+      Alert.alert("Error", "Network error or server is down");
+    } finally {
       setSendingInvite(false);
     }
   };
