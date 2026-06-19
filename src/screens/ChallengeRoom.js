@@ -66,8 +66,6 @@ export default function ChallengeRoom({ route, navigation }) {
         const playersData = await playersRes.json();
         setPlayers(playersData);
       }
-    } catch (err) {
-      console.log(err);
     } finally {
       setLoadingRoom(false);
     }
@@ -169,7 +167,6 @@ export default function ChallengeRoom({ route, navigation }) {
         navigation.replace("MatchPlay", { matchId });
       }
     } catch (error) {
-      console.log(error);
       Alert.alert("Error", "Network error.");
     }
   };

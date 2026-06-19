@@ -4,7 +4,6 @@ const BASE_URL = "http://10.0.2.2:8082";
 
 const api = async (endpoint, options = {}) => {
   let token = await getAccessToken();
-  console.log("base url is",`${BASE_URL}`);
   let response = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
     headers: {

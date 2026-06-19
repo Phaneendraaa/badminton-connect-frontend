@@ -8,6 +8,7 @@ import {
   FlatList,
   Alert
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import api from "../utils/api";
 
 export default function Requests({ navigation }) {
@@ -38,7 +39,6 @@ export default function Requests({ navigation }) {
         }
       }
     } catch (error) {
-      console.log(error);
       Alert.alert("Error", "Failed to fetch data.");
     } finally {
       setLoading(false);
@@ -113,7 +113,7 @@ export default function Requests({ navigation }) {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === "requests" && styles.activeTab]}
@@ -150,12 +150,13 @@ export default function Requests({ navigation }) {
           ListEmptyComponent={<Text style={styles.emptyText}>You haven't joined or created any rooms.</Text>}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f3f4f6" },
+  innerPad: { paddingHorizontal: 0 },
   tabContainer: { flexDirection: "row", backgroundColor: "#fff", elevation: 2 },
   tab: { flex: 1, paddingVertical: 16, alignItems: "center", borderBottomWidth: 2, borderBottomColor: "transparent" },
   activeTab: { borderBottomColor: "#2563eb" },

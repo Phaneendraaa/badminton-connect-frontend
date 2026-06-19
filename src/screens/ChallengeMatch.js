@@ -41,12 +41,10 @@ export default function ChallengeMatch({ navigation }) {
         return;
       }
 
-      console.log("match created id-> ", data.matchId);
       navigation.navigate("Challenge-Room", {
         matchId: data.matchId,
       });
     } catch (error) {
-      console.log(error);
       Alert.alert("Error", "Network error or server is down");
     } finally {
       setLoading(false);

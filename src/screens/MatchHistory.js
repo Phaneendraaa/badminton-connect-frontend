@@ -8,6 +8,7 @@ import {
   FlatList,
   Alert
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import api from "../utils/api";
 
 export default function MatchHistory({ navigation }) {
@@ -29,7 +30,6 @@ export default function MatchHistory({ navigation }) {
         Alert.alert("Error", "Failed to fetch match history.");
       }
     } catch (error) {
-      console.log(error);
       Alert.alert("Error", "Network error while fetching history.");
     } finally {
       setLoading(false);
@@ -78,7 +78,7 @@ export default function MatchHistory({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
         <Text style={styles.backButtonText}>← Back</Text>
       </TouchableOpacity>
@@ -96,13 +96,13 @@ export default function MatchHistory({ navigation }) {
           contentContainerStyle={{ paddingBottom: 20 }}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f3f4f6", padding: 20 },
-  backButton: { marginBottom: 15, marginTop: 40 },
+  container: { flex: 1, backgroundColor: "#f3f4f6", paddingHorizontal: 20, paddingTop: 8 },
+  backButton: { marginBottom: 15 },
   backButtonText: { fontSize: 16, color: "#2563eb", fontWeight: "600" },
   title: { fontSize: 28, fontWeight: "700", marginBottom: 20, color: "#1f2937" },
   
