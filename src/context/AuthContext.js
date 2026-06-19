@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { saveTokens, saveUser, getAccessToken, getUser, clearAuth } from "../utils/authStorage";
+import api from "../utils/api";
 
 const AuthContext = createContext();
 
@@ -13,23 +14,68 @@ export default function AuthProvider({ children }) {
   // Load session on app start
   useEffect(() => {
     const loadSession = async () => {
-      const storedToken = await getAccessToken();
-      const storedUser = await getUser();
-      if (storedToken) {
-        setToken(storedToken);
-        setUser(storedUser);
+      try {
+        const storedToken = await getAccessToken();
+        let storedUser = await getUser();
+        if (storedToken) {
+          setToken(storedToken);
+          
+          // Re-fetch current user if stored user or userId is missing
+          if (!storedUser || !storedUser.userId) {
+            console.log("[AuthContext] Session restore: Stored user or userId is missing. Re-fetching from /current/user...");
+            try {
+              const res = await api("/current/user");
+              if (res.ok) {
+                const userData = await res.json();
+                const userId = userData.userId || userData.id;
+                if (userId) {
+                  storedUser = {
+                    ...storedUser,
+                    ...userData,
+                    userId: userId,
+                    id: userId,
+                  };
+                  await saveUser(storedUser);
+                  console.log("[AuthContext] Successfully re-fetched and saved user:", storedUser);
+                }
+              } else {
+                console.warn("[AuthContext] Failed to re-fetch user. Response status:", res.status);
+              }
+            } catch (err) {
+              console.error("[AuthContext] Error re-fetching user identity:", err);
+            }
+          }
+          
+          if (storedUser) {
+            // Ensure userId is consistently mapped from id if it exists
+            if (!storedUser.userId && storedUser.id) {
+              storedUser.userId = storedUser.id;
+              await saveUser(storedUser);
+            }
+            setUser(storedUser);
+          }
+        }
+      } catch (error) {
+        console.error("[AuthContext] Error loading session:", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     loadSession();
   }, []);
 
   // Call this after login API response
   const login = async (accessToken, refreshToken, userDetails, newUser) => {
+    const userId = userDetails.userId || userDetails.id;
+    const stableUser = {
+      ...userDetails,
+      userId: userId,
+      id: userId,
+    };
     await saveTokens(accessToken, refreshToken);
-    await saveUser(userDetails);
+    await saveUser(stableUser);
     setToken(accessToken);
-    setUser(userDetails);
+    setUser(stableUser);
     setIsNewUser(newUser);
   };
 

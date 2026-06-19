@@ -41,7 +41,8 @@ export default function Otp({ navigation }) {
       if (response.ok) {
         const data = await response.json();
         await login(data.accessToken, data.refreshToken, {
-          userId: data.userId
+          userId: data.userId,
+          id: data.userId
         }, data.newUser);  
       } else {
         const errorData = await response.json().catch(() => ({}));

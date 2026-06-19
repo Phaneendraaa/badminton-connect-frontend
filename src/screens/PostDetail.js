@@ -28,6 +28,12 @@ export default function PostDetail({ route, navigation }) {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  const currentUserId = user?.userId || user?.id;
+
+  React.useEffect(() => {
+    console.log("[PostDetail] Mounted. resolved currentUserId:", currentUserId, "user context object:", user);
+  }, [currentUserId, user]);
+
   const fetchData = useCallback(async () => {
     setError(null);
     try {
@@ -46,7 +52,6 @@ export default function PostDetail({ route, navigation }) {
       }
 
       // 3. If organizer, fetch pending requests for this post
-      const currentUserId = user?.userId || user?.id;
       if (postData.organizerId && String(postData.organizerId) === String(currentUserId)) {
         const reqsRes = await api("/match-join-request/for-my-posts");
         if (reqsRes.ok) {
@@ -62,7 +67,7 @@ export default function PostDetail({ route, navigation }) {
     } finally {
       setLoading(false);
     }
-  }, [postId, user]);
+  }, [postId, user, currentUserId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -70,7 +75,6 @@ export default function PostDetail({ route, navigation }) {
     }, [fetchData])
   );
 
-  const currentUserId = user?.userId || user?.id;
   const isOrganizer = post && String(post.organizerId) === String(currentUserId);
 
   // ── Actions ──
