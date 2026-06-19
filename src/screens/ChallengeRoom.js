@@ -10,10 +10,14 @@ import {
   Alert,
   ScrollView,
   Modal,
+  Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from '@expo/vector-icons';
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
+import { Colors, Spacing, Radius, Typography, FontWeight, Shadow } from "../theme/tokens";
 
 export default function ChallengeRoom({ route, navigation }) {
   const { matchId } = route.params;
@@ -38,6 +42,9 @@ export default function ChallengeRoom({ route, navigation }) {
   const [editTime, setEditTime] = useState("");
   const [editType, setEditType] = useState("SINGLES");
 
+  // Input focus states for visual highlights
+  const [focusedMobile, setFocusedMobile] = useState(false);
+
   useEffect(() => {
     fetchRoomData();
     const interval = setInterval(fetchRoomData, 5000); // poll every 5s for updates
@@ -51,13 +58,6 @@ export default function ChallengeRoom({ route, navigation }) {
       if (matchRes.ok) {
         const matchData = await matchRes.json();
         setMatchDetails(matchData.match);
-      } else {
-        const errText = await matchRes.text();
-        console.error("Match API Error:", matchRes.status, errText);
-        // Only alert once to avoid spamming the user on polling
-        if (!matchDetails) {
-            alert(`Match API Error: ${matchRes.status} - ${errText.substring(0, 50)}`);
-        }
       }
 
       // Fetch players
@@ -213,7 +213,11 @@ export default function ChallengeRoom({ route, navigation }) {
   };
 
   if (loadingRoom) {
-    return <View style={[styles.container, {justifyContent: 'center'}]}><ActivityIndicator size="large" color="#2563eb" /></View>;
+    return (
+      <View style={[styles.container, { justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
   }
 
   const currentUserData = players.find(p => String(p.userId) === String(user?.userId));
@@ -221,190 +225,564 @@ export default function ChallengeRoom({ route, navigation }) {
   const isOrganizerFromMatch = String(matchDetails?.organizerId) === String(user?.userId);
   const isOrganizer = isOrganizerFromPlayer || isOrganizerFromMatch;
   const isFull = matchDetails?.slotsJoined === matchDetails?.slotsTotal;
+  const isSingles = matchDetails?.matchType === "SINGLES";
+
+  const scheduledDate = matchDetails?.scheduledAt
+    ? new Date(matchDetails.scheduledAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+    : "";
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-        <Text style={styles.backButtonText}>← Back</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.title}>{matchDetails?.matchName || "Challenge Room"}</Text>
-      {matchDetails?.scheduledAt && (
-        <Text style={styles.scheduledTime}>📅 {new Date(matchDetails.scheduledAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</Text>
-      )}
-
-      <View style={styles.roomCard}>
-        <Text style={styles.roomLabel}>Room Status</Text>
-        <Text style={styles.roomId}>{matchDetails?.status}</Text>
-        <Text style={styles.roomLabel}>Slots</Text>
-        <Text style={styles.roomId}>{matchDetails?.slotsJoined} / {matchDetails?.slotsTotal}</Text>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>{matchDetails?.matchName || "Challenge Room"}</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      <Text style={styles.sectionTitle}>Players in Room</Text>
-      {players.map(p => (
-        <View key={p.userId} style={styles.playerRow}>
-          {p.profilePictureUrl ? (
-             <Image source={{ uri: p.profilePictureUrl }} style={styles.playerAvatar} />
-          ) : (
-             <View style={styles.defaultAvatar} />
-          )}
-          <View style={styles.playerInfo}>
-            <Text style={styles.playerName}>{p.name} {p.isOrganizer && "(Org)"}</Text>
-            <Text style={styles.playerStatus}>{p.inviteStatus}</Text>
-          </View>
-          
-          {isOrganizer && matchDetails?.status === 'PENDING' && isFull && p.inviteStatus === 'JOINED' && (
-            <View style={styles.teamSelect}>
-               <TouchableOpacity 
-                  style={[styles.teamBtn, teamA.includes(p.userId) && styles.teamBtnActive]} 
-                  onPress={() => toggleTeam(p.userId, 'A')}>
-                 <Text style={teamA.includes(p.userId) ? styles.teamBtnTextActive : styles.teamBtnText}>A</Text>
-               </TouchableOpacity>
-               <TouchableOpacity 
-                  style={[styles.teamBtn, teamB.includes(p.userId) && styles.teamBtnActive]} 
-                  onPress={() => toggleTeam(p.userId, 'B')}>
-                 <Text style={teamB.includes(p.userId) ? styles.teamBtnTextActive : styles.teamBtnText}>B</Text>
-               </TouchableOpacity>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        {/* Lobby Details Card */}
+        <View style={styles.cardBorder}>
+          <LinearGradient
+            colors={['#1E2640', '#121829']}
+            style={styles.cardInner}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            {scheduledDate ? (
+              <View style={styles.timeRow}>
+                <Ionicons name="calendar-outline" size={16} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+                <Text style={styles.scheduledTime}>{scheduledDate}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.roomStatusGrid}>
+              <View style={styles.statusCell}>
+                <Text style={styles.roomLabel}>LOBBY STATUS</Text>
+                <Text style={[styles.roomId, { color: Colors.primary }]}>{matchDetails?.status}</Text>
+              </View>
+              <View style={styles.statusCell}>
+                <Text style={styles.roomLabel}>PLAYERS FILLED</Text>
+                <Text style={styles.roomId}>{matchDetails?.slotsJoined} / {matchDetails?.slotsTotal}</Text>
+              </View>
             </View>
-          )}
+          </LinearGradient>
         </View>
-      ))}
 
-      {isOrganizer && matchDetails?.status === 'PENDING' && isFull && (
-         <TouchableOpacity style={styles.actionButton} onPress={assignTeams}>
-           <Text style={styles.buttonText}>Confirm Teams</Text>
-         </TouchableOpacity>
-      )}
-
-      {isOrganizer && matchDetails?.status === 'CREATED' && (
-         <TouchableOpacity style={styles.actionButton} onPress={startMatch}>
-           <Text style={styles.buttonText}>Start Match</Text>
-         </TouchableOpacity>
-      )}
-
-      {(matchDetails?.status === 'PLAYING' || matchDetails?.status === 'FINISHED') && (
-         <TouchableOpacity style={[styles.actionButton, {backgroundColor: '#3b82f6'}]} onPress={() => navigation.navigate("MatchPlay", { matchId })}>
-            <Text style={styles.buttonText}>Go to Match Details</Text>
-         </TouchableOpacity>
-      )}
-
-      {isOrganizer && (matchDetails?.status === 'PENDING' || matchDetails?.status === 'CREATED') && (
-         <View style={styles.adminActions}>
-           <TouchableOpacity 
-             style={[styles.actionButton, { flex: 1, backgroundColor: '#f59e0b', marginRight: 10 }]} 
-             onPress={() => {
-               setEditName(matchDetails?.matchName || "");
-               setEditType(matchDetails?.matchType || "SINGLES");
-               setEditTime(matchDetails?.scheduledAt || "");
-               setEditModalVisible(true);
-             }}
-           >
-             <Text style={styles.buttonText}>Edit Room</Text>
-           </TouchableOpacity>
-           <TouchableOpacity 
-             style={[styles.actionButton, { flex: 1, backgroundColor: '#ef4444' }]} 
-             onPress={handleDeleteRoom}
-           >
-             <Text style={styles.buttonText}>Delete Room</Text>
-           </TouchableOpacity>
-         </View>
-      )}
-
-      <Modal visible={editModalVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Edit Room</Text>
-            
-            <Text style={styles.label}>Match Name</Text>
-            <TextInput style={styles.input} value={editName} onChangeText={setEditName} />
-            
-            <Text style={styles.label}>Match Type (SINGLES/DOUBLES)</Text>
-            <TextInput style={styles.input} value={editType} onChangeText={setEditType} />
-
-            <Text style={styles.label}>Scheduled Time (ISO)</Text>
-            <TextInput style={styles.input} value={editTime} onChangeText={setEditTime} placeholder="YYYY-MM-DDTHH:mm:ss" />
-
-            <View style={{flexDirection: 'row', marginTop: 20}}>
-              <TouchableOpacity style={[styles.modalButton, {backgroundColor: '#6b7280', marginRight: 10}]} onPress={() => setEditModalVisible(false)}>
-                <Text style={styles.buttonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButton, {backgroundColor: '#2563eb'}]} onPress={submitEdit}>
-                <Text style={styles.buttonText}>Save Changes</Text>
-              </TouchableOpacity>
+        {/* Players List */}
+        <Text style={styles.sectionTitle}>Players in Lobby</Text>
+        {players.map((p, idx) => (
+          <View key={p.userId} style={styles.playerCardBorder}>
+            <View style={styles.playerCardInner}>
+              {p.profilePictureUrl ? (
+                <Image source={{ uri: p.profilePictureUrl }} style={styles.playerAvatar} />
+              ) : (
+                <LinearGradient
+                  colors={isSingles ? Colors.accentGreen : Colors.accentPurple}
+                  style={styles.defaultAvatar}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={styles.avatarInitial}>{(p.name || "?")[0].toUpperCase()}</Text>
+                </LinearGradient>
+              )}
+              <View style={styles.playerInfo}>
+                <Text style={styles.playerName}>
+                  {p.name} {p.isOrganizer && <Text style={{ color: Colors.primary, fontWeight: FontWeight.bold }}> (Org)</Text>}
+                </Text>
+                <View style={styles.statusRow}>
+                  <View style={[styles.statusDot, { backgroundColor: p.inviteStatus === "JOINED" ? Colors.primary : Colors.warning }]} />
+                  <Text style={styles.playerStatus}>{p.inviteStatus}</Text>
+                </View>
+              </View>
+              
+              {isOrganizer && matchDetails?.status === 'PENDING' && isFull && p.inviteStatus === 'JOINED' && (
+                <View style={styles.teamSelect}>
+                  <TouchableOpacity 
+                    style={[styles.teamBtn, teamA.includes(p.userId) && styles.teamBtnActiveA]} 
+                    onPress={() => toggleTeam(p.userId, 'A')}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={teamA.includes(p.userId) ? styles.teamBtnTextActive : styles.teamBtnText}>A</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.teamBtn, teamB.includes(p.userId) && styles.teamBtnActiveB]} 
+                    onPress={() => toggleTeam(p.userId, 'B')}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={teamB.includes(p.userId) ? styles.teamBtnTextActive : styles.teamBtnText}>B</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           </View>
-        </View>
-      </Modal>
+        ))}
 
-      {!isFull && matchDetails?.status === 'PENDING' && isOrganizer && (
-        <>
-          <Text style={[styles.sectionTitle, {marginTop: 20}]}>Invite Player</Text>
-          <TextInput
-            placeholder="Enter mobile number"
-            value={mobile}
-            onChangeText={setMobile}
-            keyboardType="phone-pad"
-            maxLength={10}
-            style={styles.input}
-          />
-          <TouchableOpacity style={styles.searchButton} onPress={searchUser} disabled={searching}>
-            {searching ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Search Player</Text>}
+        {/* Organizer Actions */}
+        {isOrganizer && matchDetails?.status === 'PENDING' && isFull && (
+          <TouchableOpacity style={styles.buttonWrapper} onPress={assignTeams} activeOpacity={0.85}>
+            <LinearGradient colors={Colors.accentGreen} style={styles.actionButton} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+              <Text style={styles.buttonText}>Confirm Teams Selection</Text>
+            </LinearGradient>
           </TouchableOpacity>
+        )}
 
-          {searchedUser && (
-            <View style={styles.userCard}>
-              <Image
-                source={{ uri: searchedUser.profilePictureUrl || "https://via.placeholder.com/150" }}
-                style={styles.avatar}
+        {isOrganizer && matchDetails?.status === 'CREATED' && (
+          <TouchableOpacity style={styles.buttonWrapper} onPress={startMatch} activeOpacity={0.85}>
+            <LinearGradient colors={Colors.accentGreen} style={styles.actionButton} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+              <Text style={styles.buttonText}>Start Match Play</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
+        {(matchDetails?.status === 'PLAYING' || matchDetails?.status === 'FINISHED') && (
+          <TouchableOpacity style={styles.buttonWrapper} onPress={() => navigation.navigate("MatchPlay", { matchId })} activeOpacity={0.85}>
+            <LinearGradient colors={Colors.accentPurple} style={styles.actionButton} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+              <Text style={styles.buttonText}>Go to Live Match Score</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
+        {isOrganizer && (matchDetails?.status === 'PENDING' || matchDetails?.status === 'CREATED') && (
+          <View style={styles.adminActions}>
+            <TouchableOpacity 
+              style={[styles.smallBtn, { backgroundColor: '#F59E0B' }]} 
+              onPress={() => {
+                setEditName(matchDetails?.matchName || "");
+                setEditType(matchDetails?.matchType || "SINGLES");
+                setEditTime(matchDetails?.scheduledAt || "");
+                setEditModalVisible(true);
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.buttonText}>Edit Lobby</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.smallBtn, { backgroundColor: Colors.danger }]} 
+              onPress={handleDeleteRoom}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.buttonText}>Delete Lobby</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Invite Section */}
+        {!isFull && matchDetails?.status === 'PENDING' && isOrganizer && (
+          <View style={styles.inviteContainer}>
+            <Text style={styles.sectionTitle}>Invite Player</Text>
+            <View style={[styles.inputWrap, focusedMobile && styles.inputWrapActive]}>
+              <TextInput
+                placeholder="Enter 10-digit mobile number"
+                placeholderTextColor={Colors.textTertiary}
+                value={mobile}
+                onChangeText={setMobile}
+                onFocus={() => setFocusedMobile(true)}
+                onBlur={() => setFocusedMobile(false)}
+                keyboardType="phone-pad"
+                maxLength={10}
+                style={styles.input}
               />
-              <Text style={styles.name}>{searchedUser.name}</Text>
-              <Text style={styles.mobile}>{searchedUser.mobileNumber}</Text>
-              <TouchableOpacity style={styles.inviteButton} onPress={sendInvite} disabled={sendingInvite}>
-                {sendingInvite ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Invite To Room</Text>}
-              </TouchableOpacity>
             </View>
-          )}
-        </>
-      )}
-    </ScrollView>
+            <TouchableOpacity style={styles.buttonWrapper} onPress={searchUser} disabled={searching} activeOpacity={0.85}>
+              <LinearGradient colors={Colors.accentPurple} style={styles.searchButton} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                {searching ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Search User</Text>}
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {searchedUser && (
+              <View style={styles.userCardBorder}>
+                <LinearGradient colors={['#1E2640', '#121829']} style={styles.userCardInner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                  {searchedUser.profilePictureUrl ? (
+                    <Image source={{ uri: searchedUser.profilePictureUrl }} style={styles.userAvatarLarge} />
+                  ) : (
+                    <View style={styles.defaultAvatarLarge}>
+                      <Ionicons name="person" size={40} color={Colors.textSecondary} />
+                    </View>
+                  )}
+                  <Text style={styles.userName}>{searchedUser.name}</Text>
+                  <Text style={styles.mobile}>{searchedUser.phoneNumber}</Text>
+                  
+                  <TouchableOpacity style={styles.buttonWrapper} onPress={sendInvite} disabled={sendingInvite} activeOpacity={0.85}>
+                    <LinearGradient colors={Colors.accentGreen} style={styles.inviteButton} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                      {sendingInvite ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Send Invite</Text>}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </LinearGradient>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Edit Room Modal */}
+        <Modal visible={editModalVisible} animationType="fade" transparent={true}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Edit Room Settings</Text>
+              
+              <Text style={styles.modalLabel}>LOBBY NAME</Text>
+              <View style={styles.inputWrap}>
+                <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholderTextColor={Colors.textTertiary} />
+              </View>
+              
+              <Text style={styles.modalLabel}>MATCH TYPE (SINGLES / DOUBLES)</Text>
+              <View style={styles.inputWrap}>
+                <TextInput style={styles.input} value={editType} onChangeText={setEditType} placeholderTextColor={Colors.textTertiary} />
+              </View>
+
+              <Text style={styles.modalLabel}>SCHEDULED ISO TIME</Text>
+              <View style={styles.inputWrap}>
+                <TextInput style={styles.input} value={editTime} onChangeText={setEditTime} placeholder="YYYY-MM-DDTHH:mm:ss" placeholderTextColor={Colors.textTertiary} />
+              </View>
+
+              <View style={{ flexDirection: 'row', marginTop: Spacing.lg, gap: Spacing.md }}>
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#475569' }]} onPress={() => setEditModalVisible(false)} activeOpacity={0.8}>
+                  <Text style={styles.buttonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: Colors.success }]} onPress={submitEdit} activeOpacity={0.8}>
+                  <Text style={styles.buttonText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  content: { padding: 20, paddingBottom: 50 },
-  backButton: { marginBottom: 15, padding: 40 },
-  backButtonText: { fontSize: 16, color: "#2563eb", fontWeight: "600"},
-  title: { fontSize: 28, fontWeight: "700", marginBottom: 5 },
-  scheduledTime: { fontSize: 16, color: "#4b5563", marginBottom: 20 },
-  roomCard: { backgroundColor: "#f5f5f5", padding: 15, borderRadius: 12, marginBottom: 25 },
-  roomLabel: { fontSize: 12, color: "#666", marginTop: 8 },
-  roomId: { marginTop: 4, fontSize: 16, fontWeight: "600" },
-  sectionTitle: { fontSize: 18, fontWeight: "600", marginBottom: 15 },
-  playerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, padding: 10, borderWidth: 1, borderColor: '#eee', borderRadius: 10 },
-  playerAvatar: { width: 50, height: 50, borderRadius: 25, marginRight: 15 },
-  defaultAvatar: { width: 50, height: 50, borderRadius: 25, marginRight: 15, backgroundColor: '#ccc' },
-  playerInfo: { flex: 1 },
-  playerName: { fontSize: 16, fontWeight: 'bold' },
-  playerStatus: { fontSize: 12, color: '#666' },
-  teamSelect: { flexDirection: 'row', gap: 5 },
-  teamBtn: { padding: 8, borderWidth: 1, borderColor: '#ccc', borderRadius: 5, width: 40, alignItems: 'center' },
-  teamBtnActive: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
-  teamBtnText: { color: '#333' },
-  teamBtnTextActive: { color: "#fff", fontWeight: "bold" },
-  adminActions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-  modalContent: { backgroundColor: '#fff', padding: 20, borderRadius: 16 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
-  label: { fontSize: 14, color: '#374151', marginBottom: 5, marginTop: 10 },
-  input: { backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 15 },
-  modalButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },
-  actionButton: { backgroundColor: '#10b981', padding: 15, borderRadius: 10, alignItems: 'center', marginTop: 20 },
-  searchButton: { height: 50, backgroundColor: "#2563eb", borderRadius: 10, justifyContent: "center", alignItems: "center" },
-  buttonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
-  userCard: { marginTop: 25, borderWidth: 1, borderColor: "#e5e5e5", borderRadius: 15, padding: 20, alignItems: "center" },
-  avatar: { width: 90, height: 90, borderRadius: 45, marginBottom: 12 },
-  name: { fontSize: 20, fontWeight: "700" },
-  mobile: { color: "#666", marginTop: 5, marginBottom: 20 },
-  inviteButton: { backgroundColor: "#22c55e", height: 50, paddingHorizontal: 25, borderRadius: 10, justifyContent: "center", alignItems: "center" },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  headerTitle: {
+    fontSize: Typography.h3,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    flex: 1,
+    textAlign: "center",
+  },
+  content: {
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xxl + 20,
+  },
+
+  scheduledTime: {
+    fontSize: Typography.body,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.medium,
+  },
+  timeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+
+  // Cards
+  cardBorder: {
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
+    marginBottom: Spacing.lg,
+    ...Shadow.md,
+  },
+  cardInner: {
+    padding: Spacing.lg,
+  },
+  roomStatusGrid: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingTop: Spacing.md,
+    marginTop: Spacing.xs,
+  },
+  statusCell: {
+    flex: 1,
+  },
+  roomLabel: {
+    fontSize: Typography.label,
+    fontWeight: FontWeight.bold,
+    color: Colors.textTertiary,
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  roomId: {
+    fontSize: Typography.h3,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+
+  sectionTitle: {
+    fontSize: Typography.caption,
+    fontWeight: FontWeight.bold,
+    color: Colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 1.5,
+    marginBottom: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+
+  // Player lobby cards
+  playerCardBorder: {
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    marginBottom: Spacing.sm,
+    overflow: "hidden",
+  },
+  playerCardInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+  },
+  playerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: Spacing.md,
+  },
+  defaultAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: Spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitial: {
+    color: Colors.textInverse,
+    fontWeight: FontWeight.bold,
+    fontSize: Typography.h3,
+  },
+  playerInfo: {
+    flex: 1,
+  },
+  playerName: {
+    fontSize: Typography.body,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  playerStatus: {
+    fontSize: Typography.caption,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.medium,
+  },
+
+  // Team Select inside player card
+  teamSelect: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  teamBtn: {
+    height: 36,
+    width: 36,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: "rgba(255, 255, 255, 0.02)",
+  },
+  teamBtnActiveA: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  teamBtnActiveB: {
+    backgroundColor: '#8B5CF6',
+    borderColor: '#8B5CF6',
+  },
+  teamBtnText: {
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.bold,
+    fontSize: Typography.bodySmall,
+  },
+  teamBtnTextActive: {
+    color: Colors.textInverse,
+    fontWeight: FontWeight.bold,
+    fontSize: Typography.bodySmall,
+  },
+
+  adminActions: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    marginTop: Spacing.md,
+  },
+  smallBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: Radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  buttonWrapper: {
+    borderRadius: Radius.md,
+    overflow: "hidden",
+    marginTop: Spacing.md,
+  },
+  actionButton: {
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchButton: {
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonText: {
+    color: Colors.textInverse,
+    fontWeight: "bold",
+    fontSize: Typography.body,
+  },
+
+  // Invite player section
+  inviteContainer: {
+    marginTop: Spacing.xl,
+    paddingTop: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  inputWrap: {
+    backgroundColor: "rgba(9, 13, 26, 0.6)",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    height: 50,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.sm + 2,
+  },
+  inputWrapActive: {
+    borderColor: Colors.primary,
+  },
+  input: {
+    flex: 1,
+    height: "100%",
+    fontSize: Typography.body,
+    color: Colors.textPrimary,
+  },
+
+  // Searched user card
+  userCardBorder: {
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
+    marginTop: Spacing.md,
+    ...Shadow.md,
+  },
+  userCardInner: {
+    alignItems: "center",
+    padding: Spacing.lg,
+  },
+  userAvatarLarge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: Spacing.md,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+  },
+  defaultAvatarLarge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.surfaceElevated,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.md,
+    borderWidth: 2,
+    borderColor: Colors.border,
+  },
+  userName: {
+    fontSize: Typography.h3,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  mobile: {
+    color: Colors.textSecondary,
+    fontSize: Typography.bodySmall,
+    marginTop: 4,
+    marginBottom: Spacing.md,
+  },
+  inviteButton: {
+    height: 48,
+    paddingHorizontal: Spacing.xl,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'center',
+    padding: Spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: Colors.surfaceElevated,
+    padding: Spacing.lg,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  modalTitle: {
+    fontSize: Typography.h3,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.md,
+    textAlign: "center",
+  },
+  modalLabel: {
+    fontSize: Typography.label,
+    fontWeight: FontWeight.bold,
+    color: Colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  modalButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: Radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

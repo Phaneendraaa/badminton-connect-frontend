@@ -12,6 +12,7 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
@@ -97,9 +98,6 @@ export default function MatchChat({ route, navigation }) {
     setConnStatus(STATUS.CONNECTING);
 
     const client = new Client({
-      // SockJS transport — works in both Expo Go and bare workflow.
-      // For native-only environments, replace with:
-      //   webSocketFactory: () => new WebSocket(`ws://${host}/ws/websocket`)
       webSocketFactory: () => new SockJS(`${BASE_URL}/ws`),
       connectHeaders: {
         Authorization: `Bearer ${token}`,
@@ -112,11 +110,10 @@ export default function MatchChat({ route, navigation }) {
           try {
             const incoming = JSON.parse(frame.body);
             setMessages((prev) => {
-              // Remove any optimistic version of this message (same id or same content/sender within 5s)
+              // Remove any optimistic version of this message
               const filtered = prev.filter(
                 (m) => !(m._optimistic && m.senderId === incoming.senderId && m.content === incoming.content)
               );
-              // Avoid true duplicates if we already received via REST
               const alreadyExists = filtered.some((m) => m.id === incoming.id);
               if (alreadyExists) return filtered;
               return [...filtered, { ...incoming, _confirmed: true }];
@@ -197,29 +194,53 @@ export default function MatchChat({ route, navigation }) {
       ? new Date(item.sentAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       : "";
 
+    if (isMe) {
+      return (
+        <View style={styles.meBubbleWrapper}>
+          <LinearGradient
+            colors={Colors.accentPurple}
+            style={styles.bubbleMe}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Text style={styles.bubbleTextMe}>{item.content}</Text>
+            <View style={styles.bubbleMeta}>
+              <Text style={styles.bubbleTimeMe}>{time}</Text>
+              {item._optimistic && !item._failed && (
+                <Ionicons name="time-outline" size={10} color="rgba(255,255,255,0.6)" style={{ marginLeft: 2 }} />
+              )}
+              {item._failed && (
+                <Ionicons name="alert-circle-outline" size={10} color={Colors.danger} style={{ marginLeft: 2 }} />
+              )}
+            </View>
+          </LinearGradient>
+        </View>
+      );
+    }
+
     return (
-      <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
-        {!isMe && (
-          <Text style={styles.bubbleSender}>{item.senderName || "Unknown"}</Text>
-        )}
-        <Text style={[styles.bubbleText, isMe && styles.bubbleTextMe]}>{item.content}</Text>
-        <View style={styles.bubbleMeta}>
-          <Text style={[styles.bubbleTime, isMe && styles.bubbleTimeMe]}>{time}</Text>
-          {item._optimistic && !item._failed && (
-            <Ionicons name="time-outline" size={10} color={isMe ? Colors.primaryMuted : Colors.textTertiary} />
-          )}
-          {item._failed && (
-            <Ionicons name="alert-circle-outline" size={10} color={Colors.danger} />
-          )}
+      <View style={styles.themBubbleWrapper}>
+        <View style={styles.bubbleThem}>
+          <Text style={styles.bubbleSender}>{item.senderName || "Player"}</Text>
+          <Text style={styles.bubbleTextThem}>{item.content}</Text>
+          <View style={styles.bubbleMeta}>
+            <Text style={styles.bubbleTimeThem}>{time}</Text>
+          </View>
         </View>
       </View>
     );
   };
 
-  const connDot = () => {
-    if (connStatus === STATUS.CONNECTED) return Colors.success;
+  const getConnColor = () => {
+    if (connStatus === STATUS.CONNECTED) return Colors.primary;
     if (connStatus === STATUS.CONNECTING) return Colors.warning;
     return Colors.danger;
+  };
+
+  const getConnGlow = () => {
+    if (connStatus === STATUS.CONNECTED) return styles.glowGreen;
+    if (connStatus === STATUS.CONNECTING) return styles.glowOrange;
+    return styles.glowRed;
   };
 
   return (
@@ -227,17 +248,16 @@ export default function MatchChat({ route, navigation }) {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 4 }}>
-            <Ionicons name="arrow-back" size={22} color={Colors.textPrimary} />
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>Match Chat</Text>
             <View style={styles.connRow}>
-              <View style={[styles.connDot, { backgroundColor: connDot() }]} />
+              <View style={[styles.connDot, { backgroundColor: getConnColor() }, getConnGlow()]} />
               <Text style={styles.connLabel}>
                 {connStatus === STATUS.CONNECTED
                   ? "Connected"
@@ -247,7 +267,20 @@ export default function MatchChat({ route, navigation }) {
               </Text>
             </View>
           </View>
-          <View style={{ width: 30 }} />
+          <View style={{ width: 40 }} />
+        </View>
+
+        {/* Page Instruction */}
+        <View style={styles.statsStripBorder}>
+          <LinearGradient
+            colors={['rgba(0, 245, 160, 0.12)', 'rgba(0, 217, 245, 0.04)']}
+            style={styles.statsStrip}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+          >
+            <Ionicons name="flash-outline" size={16} color={Colors.primary} style={{ marginRight: Spacing.sm }} />
+            <Text style={styles.statsText}>Chat with the other players in this match.</Text>
+          </LinearGradient>
         </View>
 
         {/* Messages list */}
@@ -260,7 +293,7 @@ export default function MatchChat({ route, navigation }) {
           <View style={styles.center}>
             <Ionicons name="cloud-offline-outline" size={48} color={Colors.danger} />
             <Text style={styles.errorText}>{historyError}</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={() => fetchHistory(0)}>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => fetchHistory(0)} activeOpacity={0.8}>
               <Text style={styles.retryText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -285,7 +318,7 @@ export default function MatchChat({ route, navigation }) {
               <View style={styles.emptyContainer}>
                 <Ionicons name="chatbubbles-outline" size={60} color={Colors.textTertiary} />
                 <Text style={styles.emptyTitle}>No messages yet</Text>
-                <Text style={styles.emptySubtitle}>Be the first to say something!</Text>
+                <Text style={styles.emptySubtitle}>Be the first to send a message!</Text>
               </View>
             }
             onContentSizeChange={() => {
@@ -296,7 +329,7 @@ export default function MatchChat({ route, navigation }) {
           />
         )}
 
-        {/* Input bar */}
+        {/* Input bar (frosted glass footer) */}
         <View style={styles.inputBar}>
           <TextInput
             style={styles.input}
@@ -310,22 +343,27 @@ export default function MatchChat({ route, navigation }) {
             onSubmitEditing={sendMessage}
           />
           <TouchableOpacity
-            style={[
-              styles.sendBtn,
-              (!inputText.trim() || connStatus !== STATUS.CONNECTED) && styles.sendBtnDisabled,
-            ]}
+            style={styles.sendBtnWrapper}
             onPress={sendMessage}
             disabled={!inputText.trim() || connStatus !== STATUS.CONNECTED}
+            activeOpacity={0.8}
           >
-            <Ionicons
-              name="send"
-              size={18}
-              color={
-                !inputText.trim() || connStatus !== STATUS.CONNECTED
-                  ? Colors.textTertiary
-                  : Colors.textInverse
-              }
-            />
+            <LinearGradient
+              colors={(!inputText.trim() || connStatus !== STATUS.CONNECTED) ? [Colors.disabled, Colors.disabled] : Colors.accentGreen}
+              style={styles.sendBtn}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Ionicons
+                name="send"
+                size={18}
+                color={
+                  !inputText.trim() || connStatus !== STATUS.CONNECTED
+                    ? Colors.textTertiary
+                    : Colors.textInverse
+                }
+              />
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -334,8 +372,16 @@ export default function MatchChat({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: Spacing.md },
+  safe: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.md,
+  },
 
   // Header
   header: {
@@ -348,19 +394,88 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  headerCenter: { alignItems: "center" },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  headerCenter: {
+    alignItems: "center",
+  },
   headerTitle: {
     fontSize: Typography.h4,
     fontWeight: FontWeight.bold,
     color: Colors.textPrimary,
   },
-  connRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
-  connDot: { width: 7, height: 7, borderRadius: 4 },
-  connLabel: { fontSize: Typography.label, color: Colors.textSecondary },
+  connRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 2,
+  },
+  connDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  glowGreen: {
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  glowOrange: {
+    shadowColor: Colors.warning,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  glowRed: {
+    shadowColor: Colors.danger,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  connLabel: {
+    fontSize: Typography.caption,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.medium,
+  },
 
-  // Messages
-  messageList: { padding: Spacing.lg, paddingBottom: Spacing.md },
-  messageListEmpty: { flex: 1 },
+  // Page Instruction
+  statsStripBorder: {
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    borderBottomColor: Colors.border,
+  },
+  statsStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm + 2,
+  },
+  statsText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.primary,
+    fontWeight: FontWeight.medium,
+  },
+
+  // Messages List
+  messageList: {
+    padding: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  messageListEmpty: {
+    flex: 1,
+  },
 
   emptyContainer: {
     flex: 1,
@@ -369,40 +484,76 @@ const styles = StyleSheet.create({
     paddingTop: 80,
     gap: Spacing.sm,
   },
-  emptyTitle: { fontSize: Typography.h3, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  emptySubtitle: { fontSize: Typography.body, color: Colors.textSecondary },
+  emptyTitle: {
+    fontSize: Typography.h3,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  emptySubtitle: {
+    fontSize: Typography.body,
+    color: Colors.textSecondary,
+  },
 
   // Bubbles
-  bubble: {
+  meBubbleWrapper: {
+    alignSelf: "flex-end",
     maxWidth: "80%",
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
     marginBottom: Spacing.sm,
   },
   bubbleMe: {
-    backgroundColor: Colors.primary,
-    alignSelf: "flex-end",
+    borderRadius: Radius.lg,
     borderBottomRightRadius: Radius.sm,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    ...Shadow.glowPurple,
+  },
+  themBubbleWrapper: {
+    alignSelf: "flex-start",
+    maxWidth: "80%",
+    marginBottom: Spacing.sm,
   },
   bubbleThem: {
-    backgroundColor: Colors.surface,
-    alignSelf: "flex-start",
+    backgroundColor: "rgba(30, 38, 64, 0.4)",
+    borderRadius: Radius.lg,
     borderBottomLeftRadius: Radius.sm,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
     ...Shadow.sm,
   },
   bubbleSender: {
     fontSize: Typography.caption,
-    fontWeight: FontWeight.semiBold,
-    color: Colors.textSecondary,
-    marginBottom: 2,
+    fontWeight: FontWeight.bold,
+    color: Colors.primary,
+    marginBottom: 4,
   },
-  bubbleText: { fontSize: Typography.body, color: Colors.textPrimary },
-  bubbleTextMe: { color: Colors.textInverse },
-  bubbleMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4, justifyContent: "flex-end" },
-  bubbleTime: { fontSize: Typography.label, color: Colors.textSecondary },
-  bubbleTimeMe: { color: Colors.primaryMuted },
+  bubbleTextMe: {
+    fontSize: Typography.body,
+    color: '#FFFFFF',
+    lineHeight: 20,
+  },
+  bubbleTextThem: {
+    fontSize: Typography.body,
+    color: Colors.textPrimary,
+    lineHeight: 20,
+  },
+  bubbleMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.xs,
+    justifyContent: "flex-end",
+  },
+  bubbleTimeMe: {
+    fontSize: 10,
+    color: "rgba(255, 255, 255, 0.7)",
+  },
+  bubbleTimeThem: {
+    fontSize: 10,
+    color: Colors.textTertiary,
+  },
 
-  // Input bar
+  // Input Bar (frosted glass)
   inputBar: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -415,26 +566,45 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: "rgba(9, 13, 26, 0.6)",
     borderRadius: Radius.xl,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.sm + 2,
     fontSize: Typography.body,
     color: Colors.textPrimary,
     maxHeight: 100,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  sendBtnWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.full,
+    overflow: "hidden",
+    ...Shadow.glow,
   },
   sendBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: Colors.primary,
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  sendBtnDisabled: { backgroundColor: Colors.border },
 
-  loadingText: { color: Colors.textSecondary, fontSize: Typography.body },
-  errorText: { color: Colors.danger, textAlign: "center" },
-  retryBtn: { backgroundColor: Colors.primary, paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md, borderRadius: Radius.md },
-  retryText: { color: Colors.textInverse, fontWeight: FontWeight.semiBold },
+  loadingText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.body,
+  },
+  errorText: {
+    color: Colors.danger,
+    textAlign: "center",
+  },
+  retryBtn: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.md,
+  },
+  retryText: {
+    color: Colors.textInverse,
+    fontWeight: FontWeight.bold,
+  },
 });

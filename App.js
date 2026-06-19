@@ -23,67 +23,65 @@ function RootNavigator() {
   return (
     <Stack.Navigator>
       {user ? (
-        <>
-        <Stack.Screen
-          name="Home"
-          component={Home}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Profile-create"
-          component={ProfileCreate}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Challenge-Match"
-          component={ChallengeMatch}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Challenge-Room"
-          component={ChallengeRoom}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Requests"
-          component={Requests}
-          options={{ title: "Requests & Rooms" }}
-        />
-        <Stack.Screen
-          name="MatchPlay"
-          component={MatchPlay}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="MatchHistory"
-          component={MatchHistory}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="MatchFeed"
-          component={MatchFeed}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="CreatePost"
-          component={CreatePost}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="PostDetail"
-          component={PostDetail}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="MatchChat"
-          component={MatchChat}
-          options={{ headerShown: false }}
-        />
-        </>
-        
-        
+        <Stack.Group>
+          <Stack.Screen
+            name="Home"
+            component={Home}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Profile-create"
+            component={ProfileCreate}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Challenge-Match"
+            component={ChallengeMatch}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Challenge-Room"
+            component={ChallengeRoom}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Requests"
+            component={Requests}
+            options={{ title: "Requests & Rooms" }}
+          />
+          <Stack.Screen
+            name="MatchPlay"
+            component={MatchPlay}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="MatchHistory"
+            component={MatchHistory}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="MatchFeed"
+            component={MatchFeed}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="CreatePost"
+            component={CreatePost}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="PostDetail"
+            component={PostDetail}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="MatchChat"
+            component={MatchChat}
+            options={{ headerShown: false }}
+          />
+        </Stack.Group>
       ) : (
-        <>
+        <Stack.Group>
           <Stack.Screen
             name="Login"
             component={Login}
@@ -94,7 +92,7 @@ function RootNavigator() {
             component={Otp}
             options={{ title: "Verify OTP" }}
           />
-        </>
+        </Stack.Group>
       )}
     </Stack.Navigator>
   );

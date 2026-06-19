@@ -9,6 +9,7 @@ import {
   Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../context/AuthContext";
 import { Colors, Spacing, Radius, Typography, FontWeight, Shadow } from "../theme/tokens";
@@ -21,46 +22,51 @@ const ACTION_CARDS = [
     title: "Open Matches",
     subtitle: "Find and join public games",
     icon: "search-outline",
-    iconBg: Colors.primary,
+    gradient: Colors.accentGreen,
     screen: "MatchFeed",
     disabled: false,
+    iconColor: Colors.textInverse,
   },
   {
     id: "challenge-friend",
     title: "Challenge a Friend",
     subtitle: "Invite someone directly",
     icon: "people-outline",
-    iconBg: "#7C3AED",
+    gradient: Colors.accentPurple,
     screen: "Challenge-Match",
     disabled: false,
+    iconColor: "#FFFFFF",
   },
   {
     id: "my-requests",
     title: "Requests & Rooms",
     subtitle: "Invites and rooms you're in",
     icon: "mail-outline",
-    iconBg: Colors.success,
+    gradient: ['#10B981', '#059669'],
     screen: "Requests",
     disabled: false,
+    iconColor: "#FFFFFF",
   },
   {
     id: "my-matches",
     title: "My Matches",
     subtitle: "History and live games",
     icon: "trophy-outline",
-    iconBg: Colors.warning,
+    gradient: Colors.accentOrange,
     screen: "MatchHistory",
     disabled: false,
+    iconColor: "#FFFFFF",
   },
   {
     id: "tournaments",
     title: "Tournaments",
     subtitle: "Compete in organised brackets",
     icon: "medal-outline",
-    iconBg: Colors.comingSoon,
+    gradient: ['#1E293B', '#0F172A'],
     screen: null,
     disabled: true,
     badge: "Coming Soon",
+    iconColor: Colors.comingSoonText,
   },
 ];
 
@@ -81,95 +87,126 @@ export default function Home({ navigation }) {
     navigation.navigate(card.screen);
   };
 
-  const firstName =
-    user?.name?.split(" ")?.[0] ||
-    user?.firstName ||
-    "Player";
+  const firstName = user?.firstName || user?.name?.split(" ")?.[0] || "there";
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
+      <LinearGradient
+        colors={[Colors.background, "#111827"]}
+        style={styles.gradientBg}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
       >
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Hello, {firstName} 👋</Text>
-            <Text style={styles.subGreeting}>Ready to play?</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.logoutBtn}
-            onPress={() =>
-              Alert.alert("Logout", "Are you sure you want to logout?", [
-                { text: "Cancel", style: "cancel" },
-                { text: "Logout", style: "destructive", onPress: logout },
-              ])
-            }
-            accessibilityLabel="Logout button"
-          >
-            <Ionicons name="log-out-outline" size={22} color={Colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Stats strip ── */}
-        <View style={styles.statsStrip}>
-          <Ionicons name="flash-outline" size={15} color={Colors.primary} />
-          <Text style={styles.statsText}> Tap a card to get started</Text>
-        </View>
-
-        {/* ── Action Cards ── */}
-        <Text style={styles.sectionLabel}>QUICK ACTIONS</Text>
-
-        {ACTION_CARDS.map((card) => (
-          <TouchableOpacity
-            key={card.id}
-            style={[styles.card, card.disabled && styles.cardDisabled]}
-            onPress={() => handleCardPress(card)}
-            activeOpacity={card.disabled ? 0.7 : 0.85}
-            accessibilityLabel={card.title}
-          >
-            <View
-              style={[
-                styles.iconWrap,
-                { backgroundColor: card.disabled ? Colors.comingSoon : card.iconBg + "22" },
-              ]}
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.greeting}>Hi, {firstName} 👋</Text>
+              <Text style={styles.subGreeting}>Ready to play?</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.logoutBtn}
+              onPress={() =>
+                Alert.alert("Logout", "Are you sure you want to logout?", [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Logout", style: "destructive", onPress: logout },
+                ])
+              }
+              accessibilityLabel="Logout button"
             >
-              <Ionicons
-                name={card.icon}
-                size={26}
-                color={card.disabled ? Colors.comingSoonText : card.iconBg}
-              />
-            </View>
+              <Ionicons name="log-out-outline" size={22} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
 
-            <View style={styles.cardText}>
-              <Text style={[styles.cardTitle, card.disabled && styles.disabledText]}>
-                {card.title}
-              </Text>
-              <Text style={[styles.cardSubtitle, card.disabled && styles.disabledText]}>
-                {card.subtitle}
-              </Text>
-            </View>
+          {/* Glowing Stats Strip / Instruction */}
+          <View style={styles.statsStripBorder}>
+            <LinearGradient
+              colors={['rgba(0, 245, 160, 0.12)', 'rgba(0, 217, 245, 0.04)']}
+              style={styles.statsStrip}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Ionicons name="flash-outline" size={16} color={Colors.primary} style={{ marginRight: Spacing.sm }} />
+              <Text style={styles.statsText}>Welcome to BadmintonConnect! Choose an action below to get started.</Text>
+            </LinearGradient>
+          </View>
 
-            {card.badge ? (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{card.badge}</Text>
-              </View>
-            ) : (
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={Colors.textTertiary}
-              />
-            )}
-          </TouchableOpacity>
-        ))}
+          {/* Section Label */}
+          <Text style={styles.sectionLabel}>QUICK ACTIONS</Text>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>BadmintonConnect · v1.0</Text>
-        </View>
-      </ScrollView>
+          {/* Action Cards */}
+          {ACTION_CARDS.map((card) => {
+            const CardComponent = card.disabled ? View : TouchableOpacity;
+            const cardProps = card.disabled
+              ? {}
+              : {
+                  onPress: () => handleCardPress(card),
+                  activeOpacity: 0.85,
+                  accessibilityLabel: card.title,
+                };
+
+            return (
+              <CardComponent
+                key={card.id}
+                style={[
+                  styles.cardBorder,
+                  card.disabled && styles.cardDisabledBorder,
+                ]}
+                {...cardProps}
+              >
+                <LinearGradient
+                  colors={card.disabled ? ['#13192B', '#0E1321'] : ['#1E2540', '#121829']}
+                  style={styles.cardInner}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <LinearGradient
+                    colors={card.gradient}
+                    style={styles.iconWrap}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Ionicons
+                      name={card.icon}
+                      size={26}
+                      color={card.iconColor}
+                    />
+                  </LinearGradient>
+
+                  <View style={styles.cardText}>
+                    <Text style={[styles.cardTitle, card.disabled && styles.disabledText]}>
+                      {card.title}
+                    </Text>
+                    <Text style={[styles.cardSubtitle, card.disabled && styles.disabledText]}>
+                      {card.subtitle}
+                    </Text>
+                  </View>
+
+                  {card.badge ? (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{card.badge}</Text>
+                    </View>
+                  ) : (
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={Colors.textTertiary}
+                    />
+                  )}
+                </LinearGradient>
+              </CardComponent>
+            );
+          })}
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>BadmintonConnect · v1.0</Text>
+          </View>
+        </ScrollView>
+      </LinearGradient>
     </SafeAreaView>
   );
 }
@@ -178,6 +215,9 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  gradientBg: {
+    flex: 1,
   },
   scroll: {
     flex: 1,
@@ -196,7 +236,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   greeting: {
-    fontSize: Typography.h2,
+    fontSize: Typography.h1,
     fontWeight: FontWeight.bold,
     color: Colors.textPrimary,
   },
@@ -206,29 +246,37 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   logoutBtn: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: Radius.full,
-    backgroundColor: Colors.surface,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
     alignItems: "center",
     justifyContent: "center",
-    ...Shadow.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
 
   // Stats strip
+  statsStripBorder: {
+    borderRadius: Radius.md,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: Colors.borderGlow,
+    marginBottom: Spacing.lg,
+    ...Shadow.glow,
+  },
   statsStrip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.primaryLight,
-    borderRadius: Radius.md,
-    padding: Spacing.sm,
+    padding: Spacing.sm + 2,
     paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.lg,
   },
   statsText: {
+    flex: 1,
     fontSize: Typography.bodySmall,
     color: Colors.primary,
     fontWeight: FontWeight.medium,
+    lineHeight: 18,
   },
 
   // Section label
@@ -236,23 +284,27 @@ const styles = StyleSheet.create({
     fontSize: Typography.label,
     fontWeight: FontWeight.bold,
     color: Colors.textTertiary,
-    letterSpacing: 1,
+    letterSpacing: 1.5,
     marginBottom: Spacing.md,
   },
 
-  // Action card
-  card: {
+  // Action card border wrap
+  cardBorder: {
+    borderRadius: Radius.lg,
+    marginBottom: Spacing.sm + 2,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
+    ...Shadow.md,
+  },
+  cardDisabledBorder: {
+    borderColor: Colors.borderLight,
+    opacity: 0.5,
+  },
+  cardInner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
     padding: Spacing.md,
-    marginBottom: Spacing.sm,
-    ...Shadow.sm,
-  },
-  cardDisabled: {
-    opacity: 0.7,
-    backgroundColor: Colors.surfaceElevated,
   },
   iconWrap: {
     width: 52,
@@ -261,13 +313,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: Spacing.md,
+    ...Shadow.sm,
   },
   cardText: {
     flex: 1,
   },
   cardTitle: {
     fontSize: Typography.h4,
-    fontWeight: FontWeight.semiBold,
+    fontWeight: FontWeight.bold,
     color: Colors.textPrimary,
     marginBottom: 2,
   },
@@ -283,8 +336,10 @@ const styles = StyleSheet.create({
   badge: {
     backgroundColor: Colors.comingSoon,
     paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   badgeText: {
     fontSize: Typography.caption,
@@ -293,7 +348,7 @@ const styles = StyleSheet.create({
   },
 
   footer: {
-    marginTop: Spacing.xl,
+    marginTop: Spacing.xxl,
     alignItems: "center",
   },
   footerText: {

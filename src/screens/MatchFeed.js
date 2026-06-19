@@ -11,6 +11,7 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import api from "../utils/api";
 import { Colors, Spacing, Radius, Typography, FontWeight, Shadow } from "../theme/tokens";
@@ -50,7 +51,7 @@ export default function MatchFeed({ navigation }) {
           throw new Error(data.message || "Failed to load posts");
         }
 
-        const newItems = (data.content || []).filter(Boolean); // null items filtered (already-joined posts)
+        const newItems = (data.content || []).filter(Boolean); // null items filtered
         if (append) {
           setPosts((prev) => [...prev, ...newItems]);
         } else {
@@ -100,52 +101,88 @@ export default function MatchFeed({ navigation }) {
         })
       : "TBD";
 
+    const isSingles = item.matchType === "SINGLES";
+
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={styles.cardBorder}
         onPress={() => navigation.navigate("PostDetail", { postId: item.postId })}
         activeOpacity={0.85}
       >
-        <View style={styles.cardHeader}>
-          <View style={[styles.typeBadge, item.matchType === "SINGLES" ? styles.singlesBadge : styles.doublesBadge]}>
-            <Text style={styles.typeBadgeText}>{item.matchType}</Text>
-          </View>
-          <Text style={styles.eloRange}>
-            {item.eloMin} – {item.eloMax} ELO
-          </Text>
-        </View>
-
-        <View style={styles.locationRow}>
-          <Ionicons name="location-outline" size={15} color={Colors.textSecondary} />
-          <Text style={styles.locationText} numberOfLines={1}>
-            {item.location || "Unknown location"}
-          </Text>
-        </View>
-
-        <View style={styles.dateRow}>
-          <Ionicons name="calendar-outline" size={15} color={Colors.textSecondary} />
-          <Text style={styles.dateText}>{scheduledDate}</Text>
-        </View>
-
-        <View style={styles.cardFooter}>
-          <View style={styles.organizerRow}>
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarInitial}>
-                {(item.organizerName || "?")[0].toUpperCase()}
+        <LinearGradient
+          colors={['#1E2640', '#121829']}
+          style={styles.cardInner}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          {/* Card Header */}
+          <View style={styles.cardHeader}>
+            <View
+              style={[
+                styles.typeBadge,
+                isSingles ? styles.singlesBadge : styles.doublesBadge,
+              ]}
+            >
+              <Text style={[styles.typeBadgeText, isSingles ? styles.singlesText : styles.doublesText]}>
+                {item.matchType}
               </Text>
             </View>
-            <View>
-              <Text style={styles.organizerName}>{item.organizerName || "Unknown"}</Text>
-              <Text style={styles.organizerElo}>{item.organizerElo} ELO</Text>
-            </View>
-          </View>
-
-          <View style={styles.slotsChip}>
-            <Text style={styles.slotsText}>
-              {slotsLeft} slot{slotsLeft !== 1 ? "s" : ""} left
+            <Text style={styles.eloRange}>
+              🏆 {item.eloMin} – {item.eloMax} ELO
             </Text>
           </View>
-        </View>
+
+          {/* Title */}
+          <Text style={styles.titleText} numberOfLines={1}>
+            {item.title}
+          </Text>
+
+          {/* Location */}
+          <View style={styles.infoRow}>
+            <Ionicons name="location-outline" size={15} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+            <Text
+              style={[
+                styles.infoText,
+                !item.location && { color: Colors.textTertiary },
+              ]}
+              numberOfLines={1}
+            >
+              {item.location ? item.location : "Location not shared yet"}
+            </Text>
+          </View>
+
+          {/* Date & Time */}
+          <View style={styles.infoRow}>
+            <Ionicons name="calendar-outline" size={15} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+            <Text style={styles.infoText}>{scheduledDate}</Text>
+          </View>
+
+          {/* Card Footer */}
+          <View style={styles.cardFooter}>
+            <View style={styles.organizerRow}>
+              <LinearGradient
+                colors={isSingles ? Colors.accentGreen : Colors.accentPurple}
+                style={styles.avatarWrap}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Text style={styles.avatarInitial}>
+                  {(item.organizerName || "?")[0].toUpperCase()}
+                </Text>
+              </LinearGradient>
+              <View>
+                <Text style={styles.organizerName}>{item.organizerName || "Unknown"}</Text>
+                <Text style={styles.organizerElo}>{item.organizerElo} ELO</Text>
+              </View>
+            </View>
+
+            <View style={[styles.slotsChip, slotsLeft === 0 ? styles.slotsFull : styles.slotsAvailable]}>
+              <Text style={[styles.slotsText, slotsLeft === 0 ? styles.slotsTextFull : styles.slotsTextAvailable]}>
+                {slotsLeft === 0 ? "Full" : `${slotsLeft} slot${slotsLeft !== 1 ? "s" : ""} left`}
+              </Text>
+            </View>
+          </View>
+        </LinearGradient>
       </TouchableOpacity>
     );
   };
@@ -156,7 +193,7 @@ export default function MatchFeed({ navigation }) {
       <View style={styles.emptyContainer}>
         <Ionicons name="search-outline" size={60} color={Colors.textTertiary} />
         <Text style={styles.emptyTitle}>No open matches found</Text>
-        <Text style={styles.emptySubtitle}>Try adjusting your filters or check back later</Text>
+        <Text style={styles.emptySubtitle}>Try adjusting your filters or search query</Text>
       </View>
     );
   };
@@ -177,15 +214,36 @@ export default function MatchFeed({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color={Colors.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Open Matches</Text>
         <TouchableOpacity
           style={styles.createBtn}
           onPress={() => navigation.navigate("CreatePost")}
+          activeOpacity={0.8}
         >
-          <Ionicons name="add" size={22} color={Colors.textInverse} />
+          <LinearGradient
+            colors={Colors.accentGreen}
+            style={styles.createBtnGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Ionicons name="add" size={22} color={Colors.textInverse} />
+          </LinearGradient>
         </TouchableOpacity>
+      </View>
+
+      {/* Instruction Banner */}
+      <View style={styles.statsStripBorder}>
+        <LinearGradient
+          colors={['rgba(0, 245, 160, 0.12)', 'rgba(0, 217, 245, 0.04)']}
+          style={styles.statsStrip}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+        >
+          <Ionicons name="flash-outline" size={16} color={Colors.primary} style={{ marginRight: Spacing.sm }} />
+          <Text style={styles.statsText}>Browse open matches near you and request to join one.</Text>
+        </LinearGradient>
       </View>
 
       {/* Filter bar */}
@@ -193,22 +251,43 @@ export default function MatchFeed({ navigation }) {
         <TouchableOpacity
           style={[styles.filterChip, matchTypeFilter === "SINGLES" && styles.filterChipActive]}
           onPress={() => setFilter("SINGLES")}
+          activeOpacity={0.8}
         >
-          <Text style={[styles.filterChipText, matchTypeFilter === "SINGLES" && styles.filterChipTextActive]}>
-            Singles
-          </Text>
+          {matchTypeFilter === "SINGLES" ? (
+            <LinearGradient
+              colors={Colors.accentGreen}
+              style={styles.chipGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={[styles.filterChipText, { color: Colors.textInverse }]}>Singles</Text>
+            </LinearGradient>
+          ) : (
+            <Text style={styles.filterChipText}>Singles</Text>
+          )}
         </TouchableOpacity>
+
         <TouchableOpacity
           style={[styles.filterChip, matchTypeFilter === "DOUBLES" && styles.filterChipActive]}
           onPress={() => setFilter("DOUBLES")}
+          activeOpacity={0.8}
         >
-          <Text style={[styles.filterChipText, matchTypeFilter === "DOUBLES" && styles.filterChipTextActive]}>
-            Doubles
-          </Text>
+          {matchTypeFilter === "DOUBLES" ? (
+            <LinearGradient
+              colors={Colors.accentPurple}
+              style={styles.chipGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={[styles.filterChipText, { color: '#FFFFFF' }]}>Doubles</Text>
+            </LinearGradient>
+          ) : (
+            <Text style={styles.filterChipText}>Doubles</Text>
+          )}
         </TouchableOpacity>
 
         <View style={styles.locationInput}>
-          <Ionicons name="search-outline" size={14} color={Colors.textTertiary} />
+          <Ionicons name="search-outline" size={16} color={Colors.textSecondary} />
           <TextInput
             style={styles.locationInputText}
             placeholder="Filter by location..."
@@ -221,7 +300,7 @@ export default function MatchFeed({ navigation }) {
         </View>
       </View>
 
-      {/* Content */}
+      {/* Content List */}
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
@@ -230,35 +309,56 @@ export default function MatchFeed({ navigation }) {
       ) : error ? (
         renderError()
       ) : (
-        <FlatList
-          data={posts}
-          keyExtractor={(item, idx) => (item?.postId ? item.postId.toString() : idx.toString())}
-          renderItem={renderPost}
-          ListEmptyComponent={renderEmpty}
-          contentContainerStyle={[styles.list, posts.length === 0 && styles.listEmpty]}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={Colors.primary}
-              colors={[Colors.primary]}
-            />
-          }
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.3}
-          ListFooterComponent={
-            loadingMore ? (
-              <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 16 }} />
-            ) : null
-          }
-        />
+        <View style={{ flex: 1 }}>
+          <FlatList
+            data={posts}
+            keyExtractor={(item, idx) => (item?.postId ? item.postId.toString() : idx.toString())}
+            renderItem={renderPost}
+            ListEmptyComponent={renderEmpty}
+            contentContainerStyle={[styles.list, posts.length === 0 && styles.listEmpty]}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={Colors.primary}
+                colors={[Colors.primary]}
+              />
+            }
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.3}
+            ListFooterComponent={
+              loadingMore ? (
+                <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 16 }} />
+              ) : null
+            }
+          />
+
+          {/* Floating Action Button */}
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={() => navigation.navigate("CreatePost")}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={Colors.accentGreen}
+              style={styles.fabGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Ionicons name="add" size={28} color={Colors.textInverse} />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+  safe: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
 
   // Header
   header: {
@@ -271,19 +371,49 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  backBtn: { padding: 4 },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
   headerTitle: {
     fontSize: Typography.h3,
     fontWeight: FontWeight.bold,
     color: Colors.textPrimary,
   },
   createBtn: {
-    backgroundColor: Colors.primary,
-    width: 34,
-    height: 34,
+    width: 40,
+    height: 40,
     borderRadius: Radius.sm,
+    overflow: "hidden",
+  },
+  createBtnGradient: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  // Page Instruction
+  statsStripBorder: {
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    borderBottomColor: Colors.border,
+  },
+  statsStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm + 2,
+  },
+  statsText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.primary,
+    fontWeight: FontWeight.medium,
   },
 
   // Filter bar
@@ -292,56 +422,73 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.sm + 2,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   filterChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
     borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    backgroundColor: "rgba(255, 255, 255, 0.02)",
+    overflow: "hidden",
   },
   filterChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    borderWidth: 0,
+  },
+  chipGradient: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 7,
+    justifyContent: "center",
+    alignItems: "center",
   },
   filterChipText: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
     fontSize: Typography.bodySmall,
-    fontWeight: FontWeight.medium,
+    fontWeight: FontWeight.semiBold,
     color: Colors.textSecondary,
   },
-  filterChipTextActive: { color: Colors.textInverse },
   locationInput: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.background,
-    borderRadius: Radius.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    gap: 4,
+    backgroundColor: "rgba(9, 13, 26, 0.6)",
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.md,
+    height: 38,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   locationInputText: {
     flex: 1,
     fontSize: Typography.bodySmall,
     color: Colors.textPrimary,
+    marginLeft: 6,
   },
 
   // List
-  list: { padding: Spacing.lg, gap: Spacing.sm },
-  listEmpty: { flex: 1 },
+  list: {
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xxl + 40,
+    gap: Spacing.sm,
+  },
+  listEmpty: {
+    flex: 1,
+  },
 
-  // Card
-  card: {
-    backgroundColor: Colors.surface,
+  // Card Border wrap
+  cardBorder: {
     borderRadius: Radius.lg,
-    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
     marginBottom: Spacing.sm,
-    ...Shadow.sm,
+    ...Shadow.md,
+  },
+  cardInner: {
+    padding: Spacing.md,
   },
   cardHeader: {
     flexDirection: "row",
@@ -354,77 +501,108 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: Radius.sm,
   },
-  singlesBadge: { backgroundColor: Colors.primaryLight },
-  doublesBadge: { backgroundColor: "#F3E8FF" },
+  singlesBadge: {
+    backgroundColor: "rgba(0, 245, 160, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(0, 245, 160, 0.2)",
+  },
+  doublesBadge: {
+    backgroundColor: "rgba(139, 92, 246, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(139, 92, 246, 0.2)",
+  },
   typeBadgeText: {
     fontSize: Typography.caption,
     fontWeight: FontWeight.bold,
+  },
+  singlesText: {
     color: Colors.primary,
+  },
+  doublesText: {
+    color: "#8B5CF6",
   },
   eloRange: {
     fontSize: Typography.caption,
     color: Colors.textSecondary,
-    fontWeight: FontWeight.medium,
-  },
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginBottom: 4,
-  },
-  locationText: {
-    flex: 1,
-    fontSize: Typography.body,
     fontWeight: FontWeight.semiBold,
-    color: Colors.textPrimary,
   },
-  dateRow: {
+  titleText: {
+    fontSize: Typography.body,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  infoRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.xs,
   },
-  dateText: { fontSize: Typography.bodySmall, color: Colors.textSecondary },
+  infoText: {
+    flex: 1,
+    fontSize: Typography.bodySmall,
+    color: Colors.textSecondary,
+  },
 
   // Card footer
   cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: Spacing.sm,
+    paddingTop: Spacing.md,
+    marginTop: Spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
-  organizerRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
-  avatarPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.primaryMuted,
+  organizerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  avatarWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.full,
     alignItems: "center",
     justifyContent: "center",
+    ...Shadow.sm,
   },
   avatarInitial: {
     fontSize: Typography.bodySmall,
     fontWeight: FontWeight.bold,
-    color: Colors.primary,
+    color: Colors.textInverse,
   },
   organizerName: {
     fontSize: Typography.bodySmall,
     fontWeight: FontWeight.semiBold,
     color: Colors.textPrimary,
   },
-  organizerElo: { fontSize: Typography.caption, color: Colors.textSecondary },
+  organizerElo: {
+    fontSize: Typography.caption,
+    color: Colors.textTertiary,
+  },
   slotsChip: {
-    backgroundColor: Colors.successLight,
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: Spacing.sm + 2,
     paddingVertical: 4,
     borderRadius: Radius.full,
+    borderWidth: 1,
+  },
+  slotsAvailable: {
+    backgroundColor: Colors.successLight,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+  },
+  slotsFull: {
+    backgroundColor: Colors.dangerLight,
+    borderColor: "rgba(239, 68, 68, 0.2)",
   },
   slotsText: {
     fontSize: Typography.caption,
-    fontWeight: FontWeight.semiBold,
+    fontWeight: FontWeight.bold,
+  },
+  slotsTextAvailable: {
     color: Colors.success,
+  },
+  slotsTextFull: {
+    color: Colors.danger,
   },
 
   // Empty / Error
@@ -433,13 +611,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: Spacing.xl,
+    marginTop: 80,
   },
   emptyTitle: {
     fontSize: Typography.h3,
     fontWeight: FontWeight.bold,
     color: Colors.textPrimary,
     marginTop: Spacing.md,
-    textAlign: "center",
   },
   emptySubtitle: {
     fontSize: Typography.body,
@@ -454,12 +632,35 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: Radius.md,
   },
-  retryText: { color: Colors.textInverse, fontWeight: FontWeight.semiBold },
+  retryText: {
+    color: Colors.textInverse,
+    fontWeight: FontWeight.bold,
+  },
   loadingContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.md,
   },
-  loadingText: { color: Colors.textSecondary, fontSize: Typography.body },
+  loadingText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.body,
+  },
+
+  // FAB
+  fab: {
+    position: "absolute",
+    bottom: Spacing.lg,
+    right: Spacing.lg,
+    width: 56,
+    height: 56,
+    borderRadius: Radius.full,
+    overflow: "hidden",
+    ...Shadow.glow,
+  },
+  fabGradient: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

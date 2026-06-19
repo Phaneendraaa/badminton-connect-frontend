@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, TextInput, Image, ActivityIndicator } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from '@expo/vector-icons';
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
+import { Colors, Spacing, Radius, Typography, FontWeight, Shadow } from "../theme/tokens";
 
 export default function MatchPlay({ route, navigation }) {
   const { matchId } = route.params;
@@ -20,15 +23,19 @@ export default function MatchPlay({ route, navigation }) {
   const [saving, setSaving] = useState(false);
   const [editingSetNum, setEditingSetNum] = useState(null);
 
+  // Focus states
+  const [focusedInput, setFocusedInput] = useState(null);
+
   useEffect(() => {
     fetchMatchData();
     const interval = setInterval(() => {
-      fetchMatchData(false); // pass false to avoid showing loading indicator again
+      fetchMatchData(false);
     }, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  const fetchMatchData = async () => {
+  const fetchMatchData = async (showLoading = true) => {
+    if (showLoading && loading) setLoading(true);
     try {
       const res = await api(`/match-play/${matchId}`);
       if (res.ok) {
@@ -51,7 +58,6 @@ export default function MatchPlay({ route, navigation }) {
   const teamAPlayers = players.filter(p => p.team === "TEAM_A");
   const teamBPlayers = players.filter(p => p.team === "TEAM_B");
 
-  // Count set wins
   const teamASetWins = sets.filter(s => s.setWinner === "TEAM_A").length;
   const teamBSetWins = sets.filter(s => s.setWinner === "TEAM_B").length;
 
@@ -85,7 +91,7 @@ export default function MatchPlay({ route, navigation }) {
         setTeamBScore("");
         setEditingSetNum(null);
         await fetchMatchData();
-        Alert.alert("Success", `Set ${setNum} saved!`);
+        Alert.alert("Success", `Set ${setNum} saved! ⚡`);
       } else {
         const errData = await res.json().catch(() => ({}));
         Alert.alert("Error", errData.message || "Failed to save set");
@@ -154,7 +160,7 @@ export default function MatchPlay({ route, navigation }) {
     try {
       const res = await api(`/match-play/${matchId}/finish`, { method: "POST" });
       if (res.ok) {
-        Alert.alert("Match Complete!", "The match has been finished.");
+        Alert.alert("Match Complete!", "The ELO scores have been adjusted successfully. 🏆");
         await fetchMatchData();
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -168,7 +174,7 @@ export default function MatchPlay({ route, navigation }) {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#2563eb" />
+        <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
   }
@@ -177,257 +183,764 @@ export default function MatchPlay({ route, navigation }) {
   const isPlaying = matchDetails?.status === "PLAYING";
   const isOrganizer = String(user?.userId) === String(matchDetails?.organizerId);
 
+  const scheduledDate = matchDetails?.scheduledAt
+    ? new Date(matchDetails.scheduledAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+    : "";
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{padding: 20, paddingBottom: 50}}>
-      <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-        <Text style={styles.backBtnText}>← Back</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.title}>{matchDetails?.matchName || "Match Play"}</Text>
-      {matchDetails?.scheduledAt && (
-        <Text style={styles.scheduledTime}>📅 {new Date(matchDetails.scheduledAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</Text>
-      )}
-      <View style={styles.statusBadge(isCompleted ? "#059669" : "#2563eb")}>
-        <Text style={styles.statusText}>{matchDetails?.status}</Text>
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>{matchDetails?.matchName || "Match Play"}</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      {/* Teams Display */}
-      <View style={styles.teamsContainer}>
-        <View style={styles.teamCard}>
-          <View style={[styles.teamHeader, {backgroundColor: '#3b82f6'}]}>
-            <Text style={styles.teamHeaderText}>Team A</Text>
-            <Text style={styles.setWinCount}>{teamASetWins} sets won</Text>
-          </View>
-          {teamAPlayers.map(p => (
-            <View key={p.userId} style={styles.playerItem}>
-              {p.profilePictureUrl ? (
-                <Image source={{ uri: p.profilePictureUrl }} style={styles.playerPic} />
-              ) : (
-                <View style={[styles.playerPic, styles.defaultPic]}>
-                  <Text style={styles.defaultPicText}>{p.name?.charAt(0)}</Text>
-                </View>
-              )}
-              <View style={styles.playerDetails}>
-                <Text style={styles.playerName}>{p.name}</Text>
-                <Text style={styles.playerElo}>ELO: {p.eloBefore}</Text>
-              </View>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Match Header Details */}
+        <View style={styles.detailsHeader}>
+          {scheduledDate && (
+            <View style={styles.timeRow}>
+              <Ionicons name="calendar-outline" size={14} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+              <Text style={styles.scheduledTime}>{scheduledDate}</Text>
             </View>
-          ))}
+          )}
+          <View
+            style={[
+              styles.statusBadge,
+              isCompleted ? styles.completedBadge : styles.playingBadge,
+            ]}
+          >
+            <Text style={styles.statusText}>{matchDetails?.status}</Text>
+          </View>
         </View>
 
-        <Text style={styles.vsText}>VS</Text>
-
-        <View style={styles.teamCard}>
-          <View style={[styles.teamHeader, {backgroundColor: '#ef4444'}]}>
-            <Text style={styles.teamHeaderText}>Team B</Text>
-            <Text style={styles.setWinCount}>{teamBSetWins} sets won</Text>
-          </View>
-          {teamBPlayers.map(p => (
-            <View key={p.userId} style={styles.playerItem}>
-              {p.profilePictureUrl ? (
-                <Image source={{ uri: p.profilePictureUrl }} style={styles.playerPic} />
-              ) : (
-                <View style={[styles.playerPic, styles.defaultPic]}>
-                  <Text style={styles.defaultPicText}>{p.name?.charAt(0)}</Text>
-                </View>
-              )}
-              <View style={styles.playerDetails}>
-                <Text style={styles.playerName}>{p.name}</Text>
-                <Text style={styles.playerElo}>ELO: {p.eloBefore}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      {/* Sets Scoreboard */}
-      {sets.length > 0 && (
-        <>
-          <Text style={styles.sectionTitle}>Sets</Text>
-          {sets.map(s => (
-            <View key={s.id} style={styles.setRow}>
-              <Text style={styles.setNum}>Set {s.setNumber}</Text>
-              <View style={styles.scoreRow}>
-                <Text style={[styles.scoreText, s.setWinner === "TEAM_A" && styles.winnerScore]}>{s.teamAScore}</Text>
-                <Text style={styles.scoreDivider}>–</Text>
-                <Text style={[styles.scoreText, s.setWinner === "TEAM_B" && styles.winnerScore]}>{s.teamBScore}</Text>
-              </View>
-              <View style={[styles.winnerBadge, {backgroundColor: s.setWinner === "TEAM_A" ? "#3b82f6" : "#ef4444"}]}>
-                <Text style={styles.winnerBadgeText}>{s.setWinner === "TEAM_A" ? "A" : "B"}</Text>
-              </View>
-              {isPlaying && isOrganizer && (
-                <View style={{flexDirection: 'row', marginLeft: 10, gap: 10}}>
-                  <TouchableOpacity onPress={() => handleEditSet(s)}>
-                    <Ionicons name="pencil" size={20} color="#f59e0b" />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => deleteSet(s.setNumber)}>
-                    <Ionicons name="trash" size={20} color="#ef4444" />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          ))}
-        </>
-      )}
-
-      {/* Add/Edit Set (only while playing) */}
-      {isPlaying && isOrganizer && (
-         <View style={styles.newSetCard}>
-            <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
-               <Text style={styles.cardTitle}>{editingSetNum ? `Edit Set ${editingSetNum}` : `Add Set ${currentSetNumber}`}</Text>
-               {editingSetNum !== null && (
-                 <TouchableOpacity onPress={() => { setEditingSetNum(null); setTeamAScore(""); setTeamBScore(""); }}>
-                    <Text style={{color: '#ef4444', fontWeight: 'bold'}}>Cancel Edit</Text>
-                 </TouchableOpacity>
-               )}
-            </View>
-            <View style={styles.inputRow}>
-               <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Team A</Text>
-                  <TextInput 
-                     style={styles.input} 
-                     keyboardType="number-pad" 
-                     value={teamAScore} 
-                     onChangeText={setTeamAScore}
-                     placeholder="0"
-                  />
-               </View>
-               <Text style={styles.inputVs}>vs</Text>
-               <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Team B</Text>
-                  <TextInput 
-                     style={styles.input} 
-                     keyboardType="number-pad" 
-                     value={teamBScore} 
-                     onChangeText={setTeamBScore}
-                     placeholder="0"
-                  />
-               </View>
-            </View>
-            <TouchableOpacity 
-               style={[styles.saveBtn, saving && {opacity: 0.7}]} 
-               onPress={() => saveSet(editingSetNum || currentSetNumber, teamAScore, teamBScore)} 
-               disabled={saving}
+        {/* Teams Side-by-Side Display */}
+        <View style={styles.teamsContainer}>
+          {/* Team A Card */}
+          <View style={styles.teamCard}>
+            <LinearGradient
+              colors={['#1E3A8A', '#0F172A']}
+              style={styles.teamHeader}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
             >
-               {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>{editingSetNum ? "Update Set" : "Save Set"}</Text>}
-            </TouchableOpacity>
-         </View>
-      )}
+              <Text style={styles.teamHeaderText}>Team A</Text>
+              <Text style={styles.setWinCount}>{teamASetWins} sets</Text>
+            </LinearGradient>
+            <View style={styles.teamBody}>
+              {teamAPlayers.map((p, idx) => (
+                <View key={p.userId} style={[styles.playerItem, idx > 0 && styles.playerItemDivider]}>
+                  {p.profilePictureUrl ? (
+                    <Image source={{ uri: p.profilePictureUrl }} style={styles.playerPic} />
+                  ) : (
+                    <LinearGradient
+                      colors={Colors.accentGreen}
+                      style={styles.defaultPic}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Text style={styles.defaultPicText}>{p.name?.charAt(0).toUpperCase()}</Text>
+                    </LinearGradient>
+                  )}
+                  <View style={styles.playerDetails}>
+                    <Text style={styles.playerName} numberOfLines={1}>{p.name}</Text>
+                    <Text style={styles.playerElo}>ELO: {p.eloBefore}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
 
-      {isPlaying && !isOrganizer && (
-         <View style={{ marginTop: 20, alignItems: "center" }}>
-            <Text style={{ color: "#6b7280", fontStyle: "italic", fontSize: 16 }}>Waiting for organizer to update scores...</Text>
-         </View>
-      )}
+          <View style={styles.vsContainer}>
+            <Text style={styles.vsText}>VS</Text>
+          </View>
 
-      {/* Finish Match Button */}
-      {isPlaying && isOrganizer && sets.length > 0 && (
-         <TouchableOpacity style={styles.finishBtn} onPress={confirmFinishMatch}>
-            <Text style={styles.btnText}>Finish Match</Text>
-         </TouchableOpacity>
-      )}
+          {/* Team B Card */}
+          <View style={styles.teamCard}>
+            <LinearGradient
+              colors={['#7F1D1D', '#0F172A']}
+              style={styles.teamHeader}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Text style={styles.teamHeaderText}>Team B</Text>
+              <Text style={styles.setWinCount}>{teamBSetWins} sets</Text>
+            </LinearGradient>
+            <View style={styles.teamBody}>
+              {teamBPlayers.map((p, idx) => (
+                <View key={p.userId} style={[styles.playerItem, idx > 0 && styles.playerItemDivider]}>
+                  {p.profilePictureUrl ? (
+                    <Image source={{ uri: p.profilePictureUrl }} style={styles.playerPic} />
+                  ) : (
+                    <LinearGradient
+                      colors={Colors.accentPurple}
+                      style={styles.defaultPic}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Text style={styles.defaultPicText}>{p.name?.charAt(0).toUpperCase()}</Text>
+                    </LinearGradient>
+                  )}
+                  <View style={styles.playerDetails}>
+                    <Text style={styles.playerName} numberOfLines={1}>{p.name}</Text>
+                    <Text style={styles.playerElo}>ELO: {p.eloBefore}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
 
-      {/* Match Result (shown after completion) */}
-      {isCompleted && (
-        <View style={styles.resultCard}>
-          <Text style={styles.resultTitle}>{matchDetails.winnerTeam ? "🏆 Match Result" : "🤝 Match Result"}</Text>
-          <Text style={[styles.resultWinner, !matchDetails.winnerTeam && {color: "#d97706"}]}>
-            {matchDetails.winnerTeam === "TEAM_A" ? "Winner: Team A" : matchDetails.winnerTeam === "TEAM_B" ? "Winner: Team B" : "Draw — No ELO Changes"}
-          </Text>
-          <Text style={styles.resultScore}>
-            Sets: {teamASetWins} – {teamBSetWins}
-          </Text>
+        {/* Sets Scoreboard */}
+        {sets.length > 0 && (
+          <View style={styles.sectionWrap}>
+            <Text style={styles.sectionTitle}>Set Scores</Text>
+            {sets.map((s) => (
+              <View key={s.id} style={styles.setRowBorder}>
+                <LinearGradient
+                  colors={['#1E2640', '#121829']}
+                  style={styles.setRow}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={styles.setNum}>Set {s.setNumber}</Text>
+                  <View style={styles.scoreRow}>
+                    <Text style={[styles.scoreText, s.setWinner === "TEAM_A" && styles.winnerScore]}>
+                      {s.teamAScore}
+                    </Text>
+                    <Text style={styles.scoreDivider}>–</Text>
+                    <Text style={[styles.scoreText, s.setWinner === "TEAM_B" && styles.winnerScore]}>
+                      {s.teamBScore}
+                    </Text>
+                  </View>
+                  
+                  <LinearGradient
+                    colors={s.setWinner === "TEAM_A" ? ['#3b82f6', '#1D4ED8'] : ['#ef4444', '#B91C1C']}
+                    style={styles.winnerBadge}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Text style={styles.winnerBadgeText}>{s.setWinner === "TEAM_A" ? "A" : "B"}</Text>
+                  </LinearGradient>
 
-          <Text style={styles.eloTitle}>ELO Changes</Text>
-          {players.map(p => (
-            <View key={p.userId} style={styles.eloRow}>
-              <Text style={styles.eloPlayerName}>{p.name}</Text>
-              <Text style={styles.eloTeamBadge}>{p.team === "TEAM_A" ? "A" : "B"}</Text>
-              {p.eloChange != null ? (
-                <Text style={[styles.eloChange, {color: p.eloChange >= 0 ? "#059669" : "#dc2626"}]}>
-                  {p.eloChange >= 0 ? "+" : ""}{p.eloChange} → {p.eloAfter}
-                </Text>
-              ) : (
-                <Text style={styles.eloChange}>—</Text>
+                  {isPlaying && isOrganizer && (
+                    <View style={styles.setActions}>
+                      <TouchableOpacity onPress={() => handleEditSet(s)} style={styles.setActBtn}>
+                        <Ionicons name="pencil" size={18} color="#F59E0B" />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => deleteSet(s.setNumber)} style={styles.setActBtn}>
+                        <Ionicons name="trash" size={18} color={Colors.danger} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </LinearGradient>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Add / Edit Score Form */}
+        {isPlaying && isOrganizer && (
+          <View style={styles.newSetCard}>
+            <View style={styles.newSetHeader}>
+              <Text style={styles.newSetTitle}>
+                {editingSetNum ? `Modify Set ${editingSetNum}` : `Enter Score - Set ${currentSetNumber}`}
+              </Text>
+              {editingSetNum !== null && (
+                <TouchableOpacity onPress={() => { setEditingSetNum(null); setTeamAScore(""); setTeamBScore(""); }} activeOpacity={0.8}>
+                  <Text style={styles.cancelEditText}>Cancel Edit</Text>
+                </TouchableOpacity>
               )}
             </View>
-          ))}
 
-          <TouchableOpacity style={styles.doneBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.btnText}>Done</Text>
+            <View style={styles.scoreInputContainer}>
+              <View style={styles.scoreInputGroup}>
+                <Text style={styles.inputLabel}>TEAM A</Text>
+                <View style={[styles.scoreInputWrap, focusedInput === "teamA" && styles.scoreInputWrapActive]}>
+                  <TextInput 
+                    style={styles.scoreInput} 
+                    keyboardType="phone-pad" 
+                    value={teamAScore} 
+                    onFocus={() => setFocusedInput("teamA")}
+                    onBlur={() => setFocusedInput(null)}
+                    onChangeText={setTeamAScore}
+                    placeholder="0"
+                    placeholderTextColor={Colors.textTertiary}
+                  />
+                </View>
+              </View>
+
+              <Text style={styles.inputVs}>VS</Text>
+
+              <View style={styles.scoreInputGroup}>
+                <Text style={styles.inputLabel}>TEAM B</Text>
+                <View style={[styles.scoreInputWrap, focusedInput === "teamB" && styles.scoreInputWrapActive]}>
+                  <TextInput 
+                    style={styles.scoreInput} 
+                    keyboardType="phone-pad" 
+                    value={teamBScore} 
+                    onFocus={() => setFocusedInput("teamB")}
+                    onBlur={() => setFocusedInput(null)}
+                    onChangeText={setTeamBScore}
+                    placeholder="0"
+                    placeholderTextColor={Colors.textTertiary}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.buttonWrapper} 
+              onPress={() => saveSet(editingSetNum || currentSetNumber, teamAScore, teamBScore)} 
+              disabled={saving}
+              activeOpacity={0.85}
+            >
+              <LinearGradient
+                colors={Colors.accentGreen}
+                style={styles.saveBtn}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                {saving ? <ActivityIndicator color={Colors.textInverse} /> : <Text style={styles.btnText}>{editingSetNum ? "Update Set Score" : "Submit Set Score"}</Text>}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {isPlaying && !isOrganizer && (
+          <View style={styles.waitingContainer}>
+            <ActivityIndicator size="small" color={Colors.primary} style={{ marginBottom: Spacing.sm }} />
+            <Text style={styles.waitingText}>Lobby active. Waiting for host to update set scores...</Text>
+          </View>
+        )}
+
+        {/* Finish Match Button */}
+        {isPlaying && isOrganizer && sets.length > 0 && (
+          <TouchableOpacity style={styles.buttonWrapper} onPress={confirmFinishMatch} activeOpacity={0.85}>
+            <LinearGradient
+              colors={Colors.accentOrange}
+              style={styles.finishBtn}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={styles.btnText}>Finish & Lock Match Results</Text>
+            </LinearGradient>
           </TouchableOpacity>
-        </View>
-      )}
-    </ScrollView>
+        )}
+
+        {/* Completed Match Summary */}
+        {isCompleted && (
+          <View style={styles.resultCardBorder}>
+            <LinearGradient
+              colors={['#1E2640', '#121829']}
+              style={styles.resultCard}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Text style={styles.resultTitle}>{matchDetails.winnerTeam ? "🏆 Match Complete" : "🤝 Draw Match"}</Text>
+              
+              <View style={styles.winnerAnnounceBorder}>
+                <LinearGradient
+                  colors={matchDetails.winnerTeam === "TEAM_A" ? ['rgba(30,58,138,0.3)', 'rgba(0,0,0,0)'] : matchDetails.winnerTeam === "TEAM_B" ? ['rgba(127,29,29,0.3)', 'rgba(0,0,0,0)'] : ['rgba(245,158,11,0.1)', 'rgba(0,0,0,0)']}
+                  style={styles.winnerAnnounce}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                >
+                  <Text style={[styles.resultWinner, !matchDetails.winnerTeam && { color: "#D97706" }]}>
+                    {matchDetails.winnerTeam === "TEAM_A" ? "Winners: Team A" : matchDetails.winnerTeam === "TEAM_B" ? "Winners: Team B" : "Match Draw"}
+                  </Text>
+                  <Text style={styles.resultScore}>
+                    Sets Summary: {teamASetWins} – {teamBSetWins}
+                  </Text>
+                </LinearGradient>
+              </View>
+
+              <Text style={styles.eloTitle}>ELO rating updates</Text>
+              {players.map((p, idx) => {
+                const eloDiff = p.eloChange || 0;
+                const isGain = eloDiff >= 0;
+                return (
+                  <View key={p.userId} style={[styles.eloRow, idx > 0 && styles.playerItemDivider]}>
+                    <Text style={styles.eloPlayerName} numberOfLines={1}>{p.name}</Text>
+                    <Text style={[styles.eloTeamBadge, p.team === "TEAM_A" ? styles.badgeA : styles.badgeB]}>
+                      Team {p.team === "TEAM_A" ? "A" : "B"}
+                    </Text>
+                    
+                    <View style={styles.eloScoreContainer}>
+                      {p.eloChange != null ? (
+                        <Text style={[styles.eloChangeText, { color: isGain ? Colors.primary : Colors.danger }]}>
+                          {isGain ? `+${eloDiff}` : eloDiff} ELO ({p.eloAfter})
+                        </Text>
+                      ) : (
+                        <Text style={styles.eloChangeTextMuted}>—</Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+
+              <TouchableOpacity style={styles.buttonWrapper} onPress={() => navigation.goBack()} activeOpacity={0.85}>
+                <LinearGradient
+                  colors={Colors.accentGreen}
+                  style={styles.doneBtn}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Text style={styles.btnText}>Back to Dashboard</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </LinearGradient>
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f9fafb" },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f9fafb" },
-  backBtn: { marginBottom: 15 },
-  backBtnText: { color: "#2563eb", fontSize: 16, fontWeight: "600" },
-  title: { fontSize: 28, fontWeight: "bold", color: "#111827", marginBottom: 5 },
-  scheduledTime: { fontSize: 16, color: "#4b5563", marginBottom: 15 },
-  statusBadge: (color) => ({
-    alignSelf: "flex-start",
-    backgroundColor: color,
-    paddingHorizontal: 12,
+  safe: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: Colors.background,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  headerTitle: {
+    fontSize: Typography.h3,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  content: {
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xxl + 40,
+  },
+
+  detailsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.lg,
+  },
+  timeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  scheduledTime: {
+    fontSize: Typography.bodySmall,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.medium,
+  },
+  statusBadge: {
+    paddingHorizontal: Spacing.md,
     paddingVertical: 4,
-    borderRadius: 12,
-    marginTop: 8,
-    marginBottom: 20,
-  }),
-  statusText: { color: "#fff", fontWeight: "bold", fontSize: 12 },
+    borderRadius: Radius.full,
+  },
+  completedBadge: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.25)",
+  },
+  playingBadge: {
+    backgroundColor: "rgba(0, 245, 160, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(0, 245, 160, 0.25)",
+  },
+  statusText: {
+    color: Colors.primary,
+    fontWeight: FontWeight.bold,
+    fontSize: Typography.caption,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
 
-  // Teams
-  teamsContainer: { marginBottom: 20 },
-  teamCard: { borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 12, overflow: "hidden", marginBottom: 10, backgroundColor: "#fff" },
-  teamHeader: { padding: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  teamHeaderText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
-  setWinCount: { color: "rgba(255,255,255,0.85)", fontSize: 13 },
-  playerItem: { flexDirection: "row", alignItems: "center", padding: 12, borderTopWidth: 1, borderTopColor: "#f3f4f6" },
-  playerPic: { width: 40, height: 40, borderRadius: 20, marginRight: 12 },
-  defaultPic: { backgroundColor: "#d1d5db", justifyContent: "center", alignItems: "center" },
-  defaultPicText: { color: "#4b5563", fontWeight: "bold", fontSize: 16 },
-  playerDetails: { flex: 1 },
-  playerName: { fontSize: 15, fontWeight: "600", color: "#1f2937" },
-  playerElo: { fontSize: 12, color: "#6b7280", marginTop: 2 },
-  vsText: { textAlign: "center", fontSize: 20, fontWeight: "bold", color: "#9ca3af", marginVertical: 5 },
+  // Teams Grid
+  teamsContainer: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    marginBottom: Spacing.lg,
+  },
+  teamCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.lg,
+    overflow: "hidden",
+    backgroundColor: Colors.surface,
+    ...Shadow.md,
+  },
+  teamHeader: {
+    paddingVertical: Spacing.sm + 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  teamHeaderText: {
+    color: "#FFFFFF",
+    fontWeight: FontWeight.bold,
+    fontSize: Typography.body,
+  },
+  setWinCount: {
+    color: "rgba(255, 255, 255, 0.8)",
+    fontSize: Typography.caption,
+    fontWeight: FontWeight.medium,
+    marginTop: 2,
+  },
+  teamBody: {
+    paddingHorizontal: Spacing.sm,
+  },
+  playerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.sm + 4,
+  },
+  playerItemDivider: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  playerPic: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: Spacing.sm,
+  },
+  defaultPic: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: Spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  defaultPicText: {
+    color: Colors.textInverse,
+    fontWeight: FontWeight.bold,
+    fontSize: Typography.bodySmall,
+  },
+  playerDetails: {
+    flex: 1,
+  },
+  playerName: {
+    fontSize: Typography.bodySmall,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  playerElo: {
+    fontSize: 10,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  vsContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: Spacing.sm,
+  },
+  vsText: {
+    fontSize: Typography.h3,
+    fontWeight: FontWeight.extraBold,
+    color: Colors.textTertiary,
+  },
 
-  // Sets
-  sectionTitle: { fontSize: 20, fontWeight: "600", marginTop: 10, marginBottom: 10, color: "#111827" },
-  setRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 15, backgroundColor: "#fff", borderRadius: 10, marginBottom: 8, borderWidth: 1, borderColor: "#e5e7eb" },
-  setNum: { fontWeight: "bold", width: 60, color: "#374151" },
-  scoreRow: { flexDirection: "row", gap: 10, flex: 1, justifyContent: "center", alignItems: "center" },
-  scoreText: { fontSize: 20, fontWeight: "bold", color: "#6b7280" },
-  winnerScore: { color: "#111827" },
-  scoreDivider: { fontSize: 20, color: "#d1d5db" },
-  winnerBadge: { width: 28, height: 28, borderRadius: 14, justifyContent: "center", alignItems: "center" },
-  winnerBadgeText: { color: "#fff", fontWeight: "bold", fontSize: 13 },
+  // Sets List
+  sectionWrap: {
+    marginBottom: Spacing.lg,
+  },
+  sectionTitle: {
+    fontSize: Typography.caption,
+    fontWeight: FontWeight.bold,
+    color: Colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 1.5,
+    marginBottom: Spacing.sm,
+  },
+  setRowBorder: {
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
+    marginBottom: Spacing.sm,
+  },
+  setRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: Spacing.md,
+  },
+  setNum: {
+    fontWeight: FontWeight.bold,
+    width: 60,
+    color: Colors.textPrimary,
+    fontSize: Typography.bodySmall,
+  },
+  scoreRow: {
+    flexDirection: "row",
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  scoreText: {
+    fontSize: Typography.h2,
+    fontWeight: FontWeight.extraBold,
+    color: Colors.textTertiary,
+  },
+  winnerScore: {
+    color: Colors.textPrimary,
+  },
+  scoreDivider: {
+    fontSize: Typography.h3,
+    color: Colors.border,
+  },
+  winnerBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: Spacing.sm,
+  },
+  winnerBadgeText: {
+    color: "#FFFFFF",
+    fontWeight: FontWeight.bold,
+    fontSize: Typography.caption,
+  },
+  setActions: {
+    flexDirection: 'row',
+    marginLeft: Spacing.md,
+    gap: Spacing.sm,
+  },
+  setActBtn: {
+    padding: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
 
-  // New Set Card
-  newSetCard: { marginTop: 20, padding: 20, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 12, backgroundColor: "#fff" },
-  cardTitle: { fontSize: 17, fontWeight: "bold", marginBottom: 15, color: "#111827" },
-  inputRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 15 },
-  inputGroup: { flex: 1, alignItems: "center" },
-  inputLabel: { fontSize: 14, fontWeight: "600", color: "#374151", marginBottom: 6 },
-  input: { borderWidth: 1.5, borderColor: "#d1d5db", width: 70, height: 50, textAlign: "center", borderRadius: 10, fontSize: 22, fontWeight: "bold", backgroundColor: "#f9fafb" },
-  inputVs: { fontSize: 16, fontWeight: "bold", color: "#9ca3af", marginHorizontal: 15 },
-  saveBtn: { backgroundColor: "#3b82f6", padding: 14, borderRadius: 10, alignItems: "center" },
-  btnText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
-  finishBtn: { backgroundColor: "#10b981", padding: 16, borderRadius: 12, alignItems: "center", marginTop: 20 },
+  // New Score Box
+  newSetCard: {
+    backgroundColor: Colors.surfaceGlass,
+    borderRadius: Radius.xl,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: Spacing.lg,
+    ...Shadow.lg,
+  },
+  newSetHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+  },
+  newSetTitle: {
+    fontSize: Typography.h4,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  cancelEditText: {
+    color: Colors.danger,
+    fontWeight: FontWeight.bold,
+    fontSize: Typography.caption,
+  },
+  scoreInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.lg,
+  },
+  scoreInputGroup: {
+    alignItems: "center",
+  },
+  inputLabel: {
+    fontSize: Typography.caption,
+    fontWeight: FontWeight.bold,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+    letterSpacing: 1,
+  },
+  scoreInputWrap: {
+    backgroundColor: "rgba(9, 13, 26, 0.6)",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    width: 72,
+    height: 64,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  scoreInputWrapActive: {
+    borderColor: Colors.primary,
+  },
+  scoreInput: {
+    width: "100%",
+    height: "100%",
+    textAlign: "center",
+    fontSize: 26,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  inputVs: {
+    fontSize: Typography.h3,
+    fontWeight: FontWeight.extraBold,
+    color: Colors.textTertiary,
+    marginHorizontal: Spacing.xl,
+    paddingTop: 18,
+  },
 
-  // Result Card
-  resultCard: { marginTop: 20, padding: 20, backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#e5e7eb" },
-  resultTitle: { fontSize: 22, fontWeight: "bold", textAlign: "center", marginBottom: 10, color: "#111827" },
-  resultWinner: { fontSize: 18, fontWeight: "600", textAlign: "center", color: "#059669", marginBottom: 4 },
-  resultScore: { fontSize: 16, textAlign: "center", color: "#6b7280", marginBottom: 20 },
-  eloTitle: { fontSize: 16, fontWeight: "bold", marginBottom: 10, color: "#374151" },
-  eloRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#f3f4f6" },
-  eloPlayerName: { flex: 1, fontSize: 14, fontWeight: "600", color: "#1f2937" },
-  eloTeamBadge: { backgroundColor: "#e5e7eb", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, marginRight: 10, fontWeight: "bold", fontSize: 12, overflow: "hidden" },
-  eloChange: { fontSize: 14, fontWeight: "bold", width: 100, textAlign: "right" },
-  doneBtn: { backgroundColor: "#2563eb", padding: 14, borderRadius: 10, alignItems: "center", marginTop: 20 },
+  buttonWrapper: {
+    borderRadius: Radius.md,
+    overflow: "hidden",
+  },
+  saveBtn: {
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  finishBtn: {
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.md,
+  },
+  doneBtn: {
+    height: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.xl,
+  },
+  btnText: {
+    color: Colors.textInverse,
+    fontWeight: "bold",
+    fontSize: Typography.body,
+  },
+
+  waitingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.xl,
+    backgroundColor: "rgba(255,255,255,0.01)",
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    marginBottom: Spacing.md,
+  },
+  waitingText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.bodySmall,
+    fontStyle: "italic",
+    textAlign: "center",
+  },
+
+  // Results Card
+  resultCardBorder: {
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
+    ...Shadow.lg,
+  },
+  resultCard: {
+    padding: Spacing.lg,
+  },
+  resultTitle: {
+    fontSize: Typography.h2,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    textAlign: "center",
+    marginBottom: Spacing.sm,
+  },
+  winnerAnnounceBorder: {
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
+    marginBottom: Spacing.xl,
+  },
+  winnerAnnounce: {
+    paddingVertical: Spacing.md,
+    alignItems: "center",
+  },
+  resultWinner: {
+    fontSize: Typography.h3,
+    fontWeight: FontWeight.bold,
+    color: Colors.primary,
+  },
+  resultScore: {
+    fontSize: Typography.bodySmall,
+    color: Colors.textSecondary,
+    marginTop: 4,
+    fontWeight: FontWeight.medium,
+  },
+  eloTitle: {
+    fontSize: Typography.caption,
+    fontWeight: FontWeight.bold,
+    color: Colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 1.5,
+    marginBottom: Spacing.sm,
+  },
+  eloRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.sm + 2,
+  },
+  eloPlayerName: {
+    flex: 1,
+    fontSize: Typography.bodySmall,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  eloTeamBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: Radius.sm,
+    marginRight: Spacing.md,
+    fontWeight: "bold",
+    fontSize: 10,
+    overflow: "hidden",
+    color: "#FFFFFF",
+  },
+  badgeA: {
+    backgroundColor: '#1E3A8A',
+  },
+  badgeB: {
+    backgroundColor: '#7F1D1D',
+  },
+  eloScoreContainer: {
+    width: 130,
+    alignItems: "flex-end",
+  },
+  eloChangeText: {
+    fontSize: Typography.bodySmall,
+    fontWeight: FontWeight.bold,
+  },
+  eloChangeTextMuted: {
+    fontSize: Typography.bodySmall,
+    color: Colors.textTertiary,
+  },
 });
-

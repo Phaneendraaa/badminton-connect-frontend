@@ -11,17 +11,19 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useNavigation } from "@react-navigation/native";
 import axios from "axios";
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
+import { Colors, Spacing, Radius, Typography, FontWeight, Shadow } from "../theme/tokens";
 
 export default function ProfileCreate() {
   const navigation = useNavigation();
-  const {user,setUser,logout,isNewUser,setIsNewUser} = useAuth();
-
+  const { user, setUser, logout, isNewUser, setIsNewUser } = useAuth();
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -30,7 +32,6 @@ export default function ProfileCreate() {
 
   const [dob, setDob] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-
   const [uploading, setUploading] = useState(false);
 
   const formatDate = (date) => {
@@ -39,14 +40,10 @@ export default function ProfileCreate() {
 
   const pickAndUploadImage = async () => {
     try {
-      const permission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (!permission.granted) {
-        Alert.alert(
-          "Permission Required",
-          "Please allow gallery access."
-        );
+        Alert.alert("Permission Required", "Please allow gallery access to upload a profile picture.");
         return;
       }
 
@@ -60,11 +57,9 @@ export default function ProfileCreate() {
       if (result.canceled) return;
 
       const image = result.assets[0];
-
       setUploading(true);
 
       const formData = new FormData();
-
       formData.append("file", {
         uri: image.uri,
         type: image.mimeType || "image/jpeg",
@@ -72,7 +67,6 @@ export default function ProfileCreate() {
       });
 
       formData.append("upload_preset", "profile_upload");
-
       const cloudName = "ddlpu2odd";
 
       const response = await axios.post(
@@ -86,17 +80,12 @@ export default function ProfileCreate() {
       );
 
       setProfilePictureUrl(response.data.secure_url);
-
-      Alert.alert(
-        "Success",
-        "Profile image uploaded successfully"
-      );
+      Alert.alert("Success", "Profile image uploaded successfully! 📸");
     } catch (error) {
       console.log(error);
       Alert.alert(
         "Upload Failed",
-        error?.response?.data?.error?.message ||
-          error.message
+        error?.response?.data?.error?.message || error.message
       );
     } finally {
       setUploading(false);
@@ -104,15 +93,8 @@ export default function ProfileCreate() {
   };
 
   const handleSubmit = async () => {
-    if (
-      !firstName.trim() ||
-      !lastName.trim()
-      // || !profilePictureUrl   remove in production
-    ) {
-      Alert.alert(
-        "Validation",
-        "Please complete all fields"
-      );
+    if (!firstName.trim() || !lastName.trim()) {
+      Alert.alert("Validation", "Please fill in your first and last name.");
       return;
     }
 
@@ -130,205 +112,316 @@ export default function ProfileCreate() {
 
       if (response.ok) {
         setIsNewUser(false);
-        Alert.alert("Success", "Profile created");
+        Alert.alert("Success", "Profile created successfully! Welcome to the court. 🏸");
         navigation.navigate("Home");
       } else {
-        const errorData = await response
-          .json()
-          .catch(() => ({}));
-
-        Alert.alert(
-          "Error",
-          errorData.message || "Server error"
-        );
+        const errorData = await response.json().catch(() => ({}));
+        Alert.alert("Error", errorData.message || "Server error");
       }
     } catch (error) {
       console.error(error);
-
-      Alert.alert(
-        "Error",
-        error.message || "Network error"
-      );
+      Alert.alert("Error", error.message || "Network error");
     }
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Create Profile</Text>
+    <LinearGradient
+      colors={[Colors.background, "#111827"]}
+      style={styles.container}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.title}>Create Profile</Text>
+        <Text style={styles.subtitle}>Let other players know who you are</Text>
 
-      <TouchableOpacity
-        style={styles.imageContainer}
-        onPress={pickAndUploadImage}
-      >
-        {profilePictureUrl ? (
-          <Image
-            source={{ uri: profilePictureUrl }}
-            style={styles.image}
-          />
-        ) : (
-          <Text>Select Profile Picture</Text>
+        {/* Profile Image Uploader */}
+        <TouchableOpacity
+          style={[styles.imageContainer, profilePictureUrl && styles.imageContainerActive]}
+          onPress={pickAndUploadImage}
+          disabled={uploading}
+        >
+          {profilePictureUrl ? (
+            <Image source={{ uri: profilePictureUrl }} style={styles.image} />
+          ) : (
+            <View style={styles.imagePlaceholder}>
+              <Ionicons name="camera-outline" size={32} color={Colors.textSecondary} />
+              <Text style={styles.imagePlaceholderText}>Add Photo</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {uploading && (
+          <View style={styles.loaderContainer}>
+            <ActivityIndicator size="small" color={Colors.primary} />
+            <Text style={styles.loaderText}>Uploading Image...</Text>
+          </View>
         )}
-      </TouchableOpacity>
 
-      {uploading && (
-        <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" />
-          <Text>Uploading...</Text>
+        {/* Frosted glass form panel */}
+        <View style={styles.card}>
+          <Text style={styles.inputLabel}>First Name</Text>
+          <View style={styles.inputWrap}>
+            <TextInput
+              placeholder="First Name"
+              placeholderTextColor={Colors.textTertiary}
+              value={firstName}
+              onChangeText={setFirstName}
+              style={styles.input}
+            />
+          </View>
+
+          <Text style={styles.inputLabel}>Last Name</Text>
+          <View style={styles.inputWrap}>
+            <TextInput
+              placeholder="Last Name"
+              placeholderTextColor={Colors.textTertiary}
+              value={lastName}
+              onChangeText={setLastName}
+              style={styles.input}
+            />
+          </View>
+
+          <Text style={styles.inputLabel}>Date of Birth</Text>
+          <TouchableOpacity
+            style={styles.datePickerBtn}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Ionicons name="calendar-outline" size={20} color={Colors.textSecondary} style={{ marginRight: Spacing.sm }} />
+            <Text style={styles.dateText}>{formatDate(dob)}</Text>
+          </TouchableOpacity>
+          
+          {showDatePicker && (
+            <DateTimePicker
+              value={dob}
+              mode="date"
+              maximumDate={new Date()}
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={(event, selectedDate) => {
+                setShowDatePicker(false);
+                if (selectedDate) {
+                  setDob(selectedDate);
+                }
+              }}
+            />
+          )}
+
+          <Text style={styles.inputLabel}>Gender</Text>
+          <View style={styles.genderContainer}>
+            {["MALE", "FEMALE", "OTHER"].map((gender) => {
+              const isSelected = genderEnum === gender;
+              return (
+                <TouchableOpacity
+                  key={gender}
+                  style={[
+                    styles.genderButton,
+                    isSelected && styles.genderSelected,
+                  ]}
+                  onPress={() => setGenderEnum(gender)}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.genderText,
+                      isSelected && styles.genderTextSelected,
+                    ]}
+                  >
+                    {gender.charAt(0) + gender.slice(1).toLowerCase()}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Submit Button */}
+          <TouchableOpacity
+            style={styles.buttonWrapper}
+            onPress={handleSubmit}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={Colors.accentGreen}
+              style={styles.submitBtn}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={styles.submitText}>Complete Registration</Text>
+              <Ionicons name="checkmark" size={20} color={Colors.textInverse} style={{ marginLeft: Spacing.sm }} />
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
-      )}
 
-      <TextInput
-        placeholder="First Name"
-        value={firstName}
-        onChangeText={setFirstName}
-        style={styles.input}
-      />
-
-      <TextInput
-        placeholder="Last Name"
-        value={lastName}
-        onChangeText={setLastName}
-        style={styles.input}
-      />
-
-      <TouchableOpacity
-        style={styles.input}
-        onPress={() => setShowDatePicker(true)}
-      >
-        <Text>{formatDate(dob)}</Text>
-      </TouchableOpacity>
-      
-      {showDatePicker && (
-        <DateTimePicker
-          value={dob}
-          mode="date"
-          maximumDate={new Date()}
-          display={
-            Platform.OS === "ios"
-              ? "spinner"
-              : "default"
-          }
-          onChange={(event, selectedDate) => {
-            setShowDatePicker(false);
-
-            if (selectedDate) {
-              setDob(selectedDate);
-            }
-          }}
-        />
-      )}
-      <View style={styles.genderContainer}>
-        <TouchableOpacity
-          style={[
-            styles.genderButton,
-            genderEnum === "MALE" &&
-              styles.genderSelected,
-          ]}
-          onPress={() => setGenderEnum("MALE")}
-        >
-          <Text>Male</Text>
+        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+          <Text style={styles.logoutText}>Cancel & Logout</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.genderButton,
-            genderEnum === "FEMALE" &&
-              styles.genderSelected,
-          ]}
-          onPress={() => setGenderEnum("FEMALE")}
-        >
-          <Text>Female</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.genderButton,
-            genderEnum === "OTHER" &&
-              styles.genderSelected,
-          ]}
-          onPress={() => setGenderEnum("OTHER")}
-        >
-          <Text>Other</Text>
-        </TouchableOpacity>
-      </View>
-
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleSubmit}
-      >
-        <Text style={styles.buttonText}>
-          Create Profile
-        </Text>
-      </TouchableOpacity>
-    </ScrollView>
+      </ScrollView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    paddingTop: 40,
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    padding: Spacing.lg,
+    paddingTop: 60,
+    paddingBottom: Spacing.xxl,
   },
   title: {
-    fontSize: 26,
-    fontWeight: "bold",
+    fontSize: Typography.h1,
+    fontWeight: FontWeight.bold,
     textAlign: "center",
-    marginBottom: 20,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xs,
+  },
+  subtitle: {
+    fontSize: Typography.body,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    marginBottom: Spacing.xl,
   },
   imageContainer: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    borderWidth: 1,
-    borderColor: "#ccc",
+    width: 130,
+    height: 130,
+    borderRadius: Radius.full,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: Colors.border,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "center",
-    marginBottom: 20,
+    marginBottom: Spacing.md,
+    backgroundColor: "rgba(255, 255, 255, 0.02)",
+  },
+  imageContainerActive: {
+    borderStyle: "solid",
+    borderColor: Colors.primary,
+    ...Shadow.glow,
   },
   image: {
     width: "100%",
     height: "100%",
   },
-  loaderContainer: {
+  imagePlaceholder: {
     alignItems: "center",
-    marginBottom: 15,
+  },
+  imagePlaceholderText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.caption,
+    marginTop: Spacing.xs,
+    fontWeight: FontWeight.medium,
+  },
+  loaderContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.md,
+  },
+  loaderText: {
+    color: Colors.primary,
+    fontSize: Typography.caption,
+    marginLeft: Spacing.sm,
+  },
+  card: {
+    backgroundColor: Colors.surfaceGlass,
+    borderRadius: Radius.xl,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.lg,
+  },
+  inputLabel: {
+    color: Colors.textSecondary,
+    fontSize: Typography.caption,
+    fontWeight: FontWeight.semiBold,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    marginBottom: Spacing.sm,
+  },
+  inputWrap: {
+    backgroundColor: "rgba(9, 13, 26, 0.6)",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    height: 52,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
   },
   input: {
+    flex: 1,
+    height: "100%",
+    fontSize: Typography.body,
+    color: Colors.textPrimary,
+  },
+  datePickerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(9, 13, 26, 0.6)",
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    justifyContent: "center",
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    height: 52,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  dateText: {
+    fontSize: Typography.body,
+    color: Colors.textPrimary,
   },
   genderContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 15,
+    marginBottom: Spacing.xl,
   },
   genderButton: {
     flex: 1,
-    padding: 12,
+    paddingVertical: Spacing.sm + 4,
     borderWidth: 1,
-    borderColor: "#ddd",
-    marginHorizontal: 4,
-    borderRadius: 8,
+    borderColor: Colors.border,
+    marginHorizontal: Spacing.xs,
+    borderRadius: Radius.md,
     alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.02)",
   },
   genderSelected: {
-    backgroundColor: "#dbeafe",
+    backgroundColor: Colors.primaryMuted,
+    borderColor: Colors.primary,
   },
-  button: {
-    backgroundColor: "#222",
-    padding: 15,
-    borderRadius: 8,
+  genderText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.bodySmall,
+    fontWeight: FontWeight.medium,
+  },
+  genderTextSelected: {
+    color: Colors.primary,
+    fontWeight: FontWeight.bold,
+  },
+  buttonWrapper: {
+    borderRadius: Radius.md,
+    overflow: "hidden",
+  },
+  submitBtn: {
+    height: 54,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
   },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+  submitText: {
+    color: Colors.textInverse,
+    fontSize: Typography.body,
+    fontWeight: FontWeight.bold,
+  },
+  logoutBtn: {
+    alignItems: "center",
+    marginTop: Spacing.xl,
+    paddingVertical: Spacing.sm,
+  },
+  logoutText: {
+    color: Colors.danger,
+    fontSize: Typography.bodySmall,
+    fontWeight: FontWeight.semiBold,
   },
 });

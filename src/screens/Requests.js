@@ -9,7 +9,10 @@ import {
   Alert
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import api from "../utils/api";
+import { Colors, Spacing, Radius, Typography, FontWeight, Shadow } from "../theme/tokens";
 
 export default function Requests({ navigation }) {
   const [activeTab, setActiveTab] = useState("requests"); // "requests" or "rooms"
@@ -49,10 +52,8 @@ export default function Requests({ navigation }) {
     try {
       const response = await api(`/challenge-friend/accept-invite/${matchId}`, { method: "POST" });
       if (response.ok) {
-        Alert.alert("Success", "Invite accepted!");
+        Alert.alert("Success", "Invite accepted! 🎉");
         fetchData(); // Refresh list
-        // Optionally navigate to room
-        // navigation.navigate("Challenge-Room", { matchId });
       } else {
         Alert.alert("Error", "Failed to accept invite.");
       }
@@ -76,78 +77,180 @@ export default function Requests({ navigation }) {
   };
 
   const renderRequestItem = ({ item }) => (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>{item.matchName || `Match: ${item.matchType}`}</Text>
-      <Text style={styles.cardSub}>Invite from {item.organizerName}</Text>
-      {item.scheduledAt && (
-         <Text style={styles.cardSub}>📅 {new Date(item.scheduledAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</Text>
-      )}
-      <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.acceptButton} onPress={() => handleAccept(item.matchId)}>
-          <Text style={styles.buttonText}>Accept</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.declineButton} onPress={() => handleDecline(item.matchId)}>
-          <Text style={styles.buttonText}>Decline</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={styles.cardBorder}>
+      <LinearGradient
+        colors={['#1E2640', '#121829']}
+        style={styles.cardInner}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <Text style={styles.cardTitle}>{item.matchName || `Match: ${item.matchType}`}</Text>
+        
+        <View style={styles.infoRow}>
+          <Ionicons name="person-outline" size={15} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+          <Text style={styles.cardSub}>Invite from {item.organizerName}</Text>
+        </View>
+
+        {item.scheduledAt && (
+          <View style={styles.infoRow}>
+            <Ionicons name="calendar-outline" size={15} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+            <Text style={styles.cardSub}>
+              {new Date(item.scheduledAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={styles.actionBtnWrapper}
+            onPress={() => handleAccept(item.matchId)}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={Colors.accentGreen}
+              style={styles.actionBtn}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={styles.buttonText}>Accept</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.declineButton]}
+            onPress={() => handleDecline(item.matchId)}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.buttonText, { color: Colors.danger }]}>Decline</Text>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
     </View>
   );
 
   const renderRoomItem = ({ item }) => (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>{item.matchName || `Match: ${item.matchType}`}</Text>
-      {item.scheduledAt && (
-         <Text style={styles.cardSub}>📅 {new Date(item.scheduledAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</Text>
-      )}
-      <Text style={styles.cardSub}>Slots: {item.slotsJoined} / {item.slotsTotal}</Text>
-      <Text style={styles.cardSub}>Status: {item.status}</Text>
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={styles.viewRoomButton}
-          onPress={() => navigation.navigate("Challenge-Room", { matchId: item.matchId })}
-        >
-          <Text style={styles.buttonText}>View Room</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={styles.cardBorder}>
+      <LinearGradient
+        colors={['#1E2640', '#121829']}
+        style={styles.cardInner}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <Text style={styles.cardTitle}>{item.matchName || `Match: ${item.matchType}`}</Text>
+        
+        {item.scheduledAt && (
+          <View style={styles.infoRow}>
+            <Ionicons name="calendar-outline" size={15} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+            <Text style={styles.cardSub}>
+              {new Date(item.scheduledAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.infoRow}>
+          <Ionicons name="people-outline" size={15} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+          <Text style={styles.cardSub}>Slots filled: {item.slotsJoined} / {item.slotsTotal}</Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <Ionicons name="sync-outline" size={15} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+          <Text style={styles.cardSub}>Lobby status: {item.status}</Text>
+        </View>
+
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={styles.actionBtnWrapper}
+            onPress={() => navigation.navigate("Challenge-Room", { matchId: item.matchId })}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={Colors.accentPurple}
+              style={styles.actionBtn}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>Open Room</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
     </View>
   );
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      {/* Header Tabs */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === "requests" && styles.activeTab]}
           onPress={() => setActiveTab("requests")}
+          activeOpacity={0.8}
         >
           <Text style={[styles.tabText, activeTab === "requests" && styles.activeTabText]}>
-            My Requests
+            Invites
           </Text>
+          {activeTab === "requests" && (
+            <LinearGradient colors={Colors.accentGreen} style={styles.activeTabIndicator} />
+          )}
         </TouchableOpacity>
+
         <TouchableOpacity
           style={[styles.tab, activeTab === "rooms" && styles.activeTab]}
           onPress={() => setActiveTab("rooms")}
+          activeOpacity={0.8}
         >
           <Text style={[styles.tabText, activeTab === "rooms" && styles.activeTabText]}>
-            My Rooms
+            Active Lobbies
           </Text>
+          {activeTab === "rooms" && (
+            <LinearGradient colors={Colors.accentGreen} style={styles.activeTabIndicator} />
+          )}
         </TouchableOpacity>
       </View>
 
+      {/* Page Instruction */}
+      <View style={styles.statsStripBorder}>
+        <LinearGradient
+          colors={['rgba(0, 245, 160, 0.12)', 'rgba(0, 217, 245, 0.04)']}
+          style={styles.statsStrip}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+        >
+          <Ionicons name="flash-outline" size={16} color={Colors.primary} style={{ marginRight: Spacing.sm }} />
+          <Text style={styles.statsText}>Track matches you've requested to join and manage requests on your own posts.</Text>
+        </LinearGradient>
+      </View>
+
+      {/* List content */}
       {loading ? (
-        <ActivityIndicator size="large" color="#2563eb" style={{ marginTop: 20 }} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
       ) : activeTab === "requests" ? (
         <FlatList
           data={requests}
           keyExtractor={(item) => item.matchId.toString()}
           renderItem={renderRequestItem}
-          ListEmptyComponent={<Text style={styles.emptyText}>No pending requests.</Text>}
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Ionicons name="mail-unread-outline" size={48} color={Colors.textTertiary} />
+              <Text style={styles.emptyText}>No pending invites.</Text>
+            </View>
+          }
         />
       ) : (
         <FlatList
           data={rooms}
           keyExtractor={(item) => item.matchId.toString()}
           renderItem={renderRoomItem}
-          ListEmptyComponent={<Text style={styles.emptyText}>You haven't joined or created any rooms.</Text>}
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Ionicons name="people-outline" size={48} color={Colors.textTertiary} />
+              <Text style={styles.emptyText}>You haven't joined or created any rooms.</Text>
+            </View>
+          }
         />
       )}
     </SafeAreaView>
@@ -155,20 +258,129 @@ export default function Requests({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f3f4f6" },
-  innerPad: { paddingHorizontal: 0 },
-  tabContainer: { flexDirection: "row", backgroundColor: "#fff", elevation: 2 },
-  tab: { flex: 1, paddingVertical: 16, alignItems: "center", borderBottomWidth: 2, borderBottomColor: "transparent" },
-  activeTab: { borderBottomColor: "#2563eb" },
-  tabText: { fontSize: 16, fontWeight: "600", color: "#6b7280" },
-  activeTabText: { color: "#2563eb" },
-  card: { backgroundColor: "#fff", margin: 12, padding: 16, borderRadius: 12, elevation: 2 },
-  cardTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 8, color: "#1f2937" },
-  cardSub: { fontSize: 14, color: "#4b5563", marginBottom: 4 },
-  actionRow: { flexDirection: "row", marginTop: 12, gap: 12 },
-  acceptButton: { flex: 1, backgroundColor: "#22c55e", padding: 10, borderRadius: 8, alignItems: "center" },
-  declineButton: { flex: 1, backgroundColor: "#ef4444", padding: 10, borderRadius: 8, alignItems: "center" },
-  viewRoomButton: { flex: 1, backgroundColor: "#3b82f6", padding: 10, borderRadius: 8, alignItems: "center" },
-  buttonText: { color: "#fff", fontWeight: "600" },
-  emptyText: { textAlign: "center", marginTop: 20, color: "#6b7280", fontSize: 16 }
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  tabContainer: {
+    flexDirection: "row",
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    alignItems: "center",
+    position: "relative",
+  },
+  activeTabIndicator: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+  },
+  tabText: {
+    fontSize: Typography.body,
+    fontWeight: FontWeight.bold,
+    color: Colors.textSecondary,
+  },
+  activeTabText: {
+    color: Colors.primary,
+  },
+
+  // Page Instruction
+  statsStripBorder: {
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    borderBottomColor: Colors.border,
+  },
+  statsStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm + 2,
+  },
+  statsText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.primary,
+    fontWeight: FontWeight.medium,
+  },
+
+  // Lists
+  list: {
+    padding: Spacing.md,
+  },
+
+  // Cards
+  cardBorder: {
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
+    marginBottom: Spacing.md,
+    ...Shadow.md,
+  },
+  cardInner: {
+    padding: Spacing.md,
+  },
+  cardTitle: {
+    fontSize: Typography.h3,
+    fontWeight: FontWeight.bold,
+    marginBottom: Spacing.md,
+    color: Colors.textPrimary,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  cardSub: {
+    fontSize: Typography.bodySmall,
+    color: Colors.textSecondary,
+  },
+  actionRow: {
+    flexDirection: "row",
+    marginTop: Spacing.md,
+    gap: Spacing.md,
+  },
+  actionBtnWrapper: {
+    flex: 1,
+    borderRadius: Radius.md,
+    overflow: "hidden",
+  },
+  actionBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: Radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  declineButton: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: Colors.danger,
+  },
+  buttonText: {
+    color: Colors.textInverse,
+    fontWeight: FontWeight.bold,
+    fontSize: Typography.bodySmall,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 80,
+  },
+  emptyText: {
+    marginTop: Spacing.md,
+    color: Colors.textSecondary,
+    fontSize: Typography.body,
+    textAlign: "center",
+  },
 });
