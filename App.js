@@ -7,6 +7,9 @@ import Login from "./src/screens/Login";
 import ProfileCreate from "./src/screens/ProfileCreate";
 import ChallengeMatch from "./src/screens/ChallengeMatch";
 import ChallengeRoom from "./src/screens/ChallengeRoom";
+import Requests from "./src/screens/Requests";
+import MatchPlay from "./src/screens/MatchPlay";
+import MatchHistory from "./src/screens/MatchHistory";
 const Stack = createNativeStackNavigator();
 
 // separate component so useAuth works inside NavigationContainer
@@ -35,6 +38,21 @@ function RootNavigator() {
         <Stack.Screen
           name="Challenge-Room"
           component={ChallengeRoom}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Requests"
+          component={Requests}
+          options={{ title: "Requests & Rooms" }}
+        />
+        <Stack.Screen
+          name="MatchPlay"
+          component={MatchPlay}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="MatchHistory"
+          component={MatchHistory}
           options={{ headerShown: false }}
         />
         </>

@@ -11,6 +11,12 @@ export default function Home({navigation}) {
     const handleChallenge=()=>{
         navigation.navigate("Challenge-Match");
     }
+    const handleRequests=()=>{
+        navigation.navigate("Requests");
+    }
+    const handleMatchHistory=()=>{
+        navigation.navigate("MatchHistory");
+    }
     useEffect(
         ()=>{
             if(isNewUser){
@@ -26,6 +32,12 @@ export default function Home({navigation}) {
         </Pressable>
         <Pressable onPress={handleChallenge} >
             <Text>CHallenge a friend</Text>
+        </Pressable>
+        <Pressable onPress={handleRequests} style={{marginTop: 10}}>
+            <Text>Requests & Rooms</Text>
+        </Pressable>
+        <Pressable onPress={handleMatchHistory} style={{marginTop: 10}}>
+            <Text>My Matches</Text>
         </Pressable>
     </SafeAreaView>
   );
