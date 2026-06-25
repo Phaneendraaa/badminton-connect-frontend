@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -29,18 +29,39 @@ const Field = ({ label, error, children }) => (
 export default function CreatePost({ navigation }) {
   const [title, setTitle] = useState("");
   const [matchType, setMatchType] = useState("SINGLES");
+  const [city, setCity] = useState("");
+  const [cityOther, setCityOther] = useState("");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
   const [selectedDate, setSelectedDate] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [eloMin, setEloMin] = useState("");
-  const [eloMax, setEloMax] = useState("");
+  const [eloMin, setEloMin] = useState("0");
+  const [eloMax, setEloMax] = useState("3000");
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
+  // Reference data
+  const [cities, setCities] = useState([]);
+  const [showCityDropdown, setShowCityDropdown] = useState(false);
+
   // Track active focus fields for custom glow border
   const [focusedField, setFocusedField] = useState(null);
+
+  useEffect(() => {
+    const loadCities = async () => {
+      try {
+        const response = await api("/reference/cities");
+        if (response.ok) {
+          const data = await response.json();
+          setCities(data);
+        }
+      } catch (err) {
+        console.error("Failed to load cities", err);
+      }
+    };
+    loadCities();
+  }, []);
 
   const handleDateChange = (event, date) => {
     setShowDatePicker(false);
@@ -68,6 +89,12 @@ export default function CreatePost({ navigation }) {
       errs.title = "Match title is required";
     } else if (title.trim().length > 100) {
       errs.title = "Match title must be 100 characters or less";
+    }
+
+    if (!city) {
+      errs.city = "City is required";
+    } else if (city === "Other" && !cityOther.trim()) {
+      errs.cityOther = "Please specify your city";
     }
 
     if (location.trim()) {
@@ -111,10 +138,14 @@ export default function CreatePost({ navigation }) {
       const bodyPayload = {
         title: title.trim(),
         matchType,
+        city: city,
         scheduledAt,
         eloMin: parseInt(eloMin, 10),
         eloMax: parseInt(eloMax, 10),
       };
+      if (city === "Other") {
+        bodyPayload.cityOther = cityOther.trim();
+      }
       if (location.trim()) bodyPayload.location = location.trim();
       if (description.trim()) bodyPayload.description = description.trim();
 
@@ -235,6 +266,70 @@ export default function CreatePost({ navigation }) {
               </View>
             </Field>
 
+            {/* City Picker */}
+            <Field label="City" error={errors.city}>
+              <TouchableOpacity
+                style={[
+                  styles.pickerBtn,
+                  errors.city && styles.inputWrapError,
+                ]}
+                onPress={() => setShowCityDropdown(!showCityDropdown)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="business-outline" size={20} color={Colors.textSecondary} style={{ marginRight: Spacing.sm }} />
+                <Text style={city ? styles.pickerText : styles.pickerTextPlaceholder}>
+                  {city || "Select City"}
+                </Text>
+                <Ionicons name={showCityDropdown ? "chevron-up" : "chevron-down"} size={20} color={Colors.textTertiary} style={{ marginLeft: 'auto' }} />
+              </TouchableOpacity>
+              
+              {showCityDropdown && (
+                <View style={styles.dropdownContainer}>
+                  {cities.map((c) => (
+                    <TouchableOpacity
+                      key={c}
+                      style={styles.dropdownOption}
+                      onPress={() => {
+                        setCity(c);
+                        setShowCityDropdown(false);
+                        setErrors((prev) => ({ ...prev, city: undefined }));
+                      }}
+                    >
+                      <Text style={[styles.dropdownOptionText, city === c && { color: Colors.primary, fontWeight: 'bold' }]}>{c}</Text>
+                      {city === c && <Ionicons name="checkmark" size={18} color={Colors.primary} />}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </Field>
+
+            {/* City Other */}
+            {city === "Other" && (
+              <Field label="Other City Name" error={errors.cityOther}>
+                <View
+                  style={[
+                    styles.inputWrap,
+                    focusedField === "cityOther" && styles.inputWrapActive,
+                    errors.cityOther && styles.inputWrapError,
+                  ]}
+                >
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your city name"
+                    placeholderTextColor={Colors.textTertiary}
+                    value={cityOther}
+                    onFocus={() => setFocusedField("cityOther")}
+                    onBlur={() => setFocusedField(null)}
+                    onChangeText={(t) => {
+                      setCityOther(t);
+                      setErrors((prev) => ({ ...prev, cityOther: undefined }));
+                    }}
+                    maxLength={100}
+                  />
+                </View>
+              </Field>
+            )}
+
             {/* Date and Time */}
             <Field label="Scheduled Date & Time" error={errors.scheduledAt}>
               <TouchableOpacity
@@ -339,7 +434,7 @@ export default function CreatePost({ navigation }) {
             </View>
 
             {/* Location */}
-            <Field label="Location (Optional)" error={errors.location}>
+            <Field label="Location URL (Optional)" error={errors.location}>
               <View
                 style={[
                   styles.inputWrap,
@@ -506,7 +601,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: Typography.caption,
-    fontWeight: FontWeight.bold,
+    fontWeight: "bold",
     color: Colors.textSecondary,
     marginBottom: Spacing.sm,
     textTransform: "uppercase",
@@ -566,7 +661,7 @@ const styles = StyleSheet.create({
   },
   toggleBtnText: {
     fontSize: Typography.body,
-    fontWeight: FontWeight.bold,
+    fontWeight: "bold",
     color: Colors.textSecondary,
     textAlign: "center",
     lineHeight: 50,
@@ -589,6 +684,29 @@ const styles = StyleSheet.create({
   pickerTextPlaceholder: {
     fontSize: Typography.body,
     color: Colors.textTertiary,
+  },
+
+  dropdownContainer: {
+    backgroundColor: "rgba(9, 13, 26, 0.95)",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    marginTop: 4,
+    maxHeight: 200,
+    ...Shadow.lg,
+  },
+  dropdownOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+  },
+  dropdownOptionText: {
+    color: Colors.textPrimary,
+    fontSize: Typography.body,
   },
 
   // Info Box
@@ -628,7 +746,7 @@ const styles = StyleSheet.create({
   submitBtnText: {
     color: Colors.textInverse,
     fontSize: Typography.body,
-    fontWeight: FontWeight.bold,
+    fontWeight: "bold",
   },
 
   helpBox: {

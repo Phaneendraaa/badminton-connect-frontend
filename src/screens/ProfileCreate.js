@@ -113,7 +113,7 @@ export default function ProfileCreate() {
       if (response.ok) {
         setIsNewUser(false);
         Alert.alert("Success", "Profile created successfully! Welcome to the court. 🏸");
-        navigation.navigate("Home");
+        navigation.navigate("MainTabs");
       } else {
         const errorData = await response.json().catch(() => ({}));
         Alert.alert("Error", errorData.message || "Server error");

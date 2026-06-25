@@ -437,7 +437,11 @@ export default function PostDetail({ route, navigation }) {
         {/* Organizer card */}
         <Text style={styles.sectionTitle}>Organizer</Text>
         <View style={styles.playerCardBorder}>
-          <View style={styles.playerCardInner}>
+          <TouchableOpacity 
+            style={styles.playerCardInner} 
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate("PublicProfile", { userId: post.organizerId })}
+          >
             <LinearGradient
               colors={isSingles ? Colors.accentGreen : Colors.accentPurple}
               style={styles.avatarWrap}
@@ -457,7 +461,7 @@ export default function PostDetail({ route, navigation }) {
                 <Text style={styles.youText}>Host</Text>
               </View>
             )}
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Confirmed roster */}

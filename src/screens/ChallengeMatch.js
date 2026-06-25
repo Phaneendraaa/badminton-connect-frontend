@@ -39,7 +39,7 @@ export default function ChallengeMatch({ navigation }) {
         body: JSON.stringify({
           matchType,
           matchName: matchName.trim(),
-          scheduledTime: scheduledTime.toISOString(),
+          scheduledTime: scheduledTime.toISOString().slice(0, 19),
         }),
       });
 
@@ -50,8 +50,9 @@ export default function ChallengeMatch({ navigation }) {
         return;
       }
 
-      navigation.navigate("Challenge-Room", {
-        matchId: data.matchId,
+      // Navigate to the unified My Rooms tab (Activity Main)
+      navigation.navigate("ActivityTab", {
+        screen: "ActivityMain",
       });
     } catch (error) {
       Alert.alert("Error", "Network error or server is down");

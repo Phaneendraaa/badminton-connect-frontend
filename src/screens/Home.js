@@ -1,211 +1,394 @@
-import React, { useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   StyleSheet,
-  Alert,
-  Dimensions,
+  ActivityIndicator,
+  RefreshControl,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { Colors, Spacing, Radius, Typography, FontWeight, Shadow } from "../theme/tokens";
+import { useNavigation } from "@react-navigation/native";
 
-const { width } = Dimensions.get("window");
+const PAGE_SIZE = 20;
 
-const ACTION_CARDS = [
-  {
-    id: "open-matches",
-    title: "Open Matches",
-    subtitle: "Find and join public games",
-    icon: "search-outline",
-    gradient: Colors.accentGreen,
-    screen: "MatchFeed",
-    disabled: false,
-    iconColor: Colors.textInverse,
-  },
-  {
-    id: "challenge-friend",
-    title: "Challenge a Friend",
-    subtitle: "Invite someone directly",
-    icon: "people-outline",
-    gradient: Colors.accentPurple,
-    screen: "Challenge-Match",
-    disabled: false,
-    iconColor: "#FFFFFF",
-  },
-  {
-    id: "my-requests",
-    title: "Requests & Rooms",
-    subtitle: "Invites and rooms you're in",
-    icon: "mail-outline",
-    gradient: ['#10B981', '#059669'],
-    screen: "Requests",
-    disabled: false,
-    iconColor: "#FFFFFF",
-  },
-  {
-    id: "my-matches",
-    title: "My Matches",
-    subtitle: "History and live games",
-    icon: "trophy-outline",
-    gradient: Colors.accentOrange,
-    screen: "MatchHistory",
-    disabled: false,
-    iconColor: "#FFFFFF",
-  },
-  {
-    id: "tournaments",
-    title: "Tournaments",
-    subtitle: "Compete in organised brackets",
-    icon: "medal-outline",
-    gradient: ['#1E293B', '#0F172A'],
-    screen: null,
-    disabled: true,
-    badge: "Coming Soon",
-    iconColor: Colors.comingSoonText,
-  },
-];
+export default function Home() {
+  const navigation = useNavigation();
+  const { user, isNewUser } = useAuth();
 
-export default function Home({ navigation }) {
-  const { user, logout, isNewUser } = useAuth();
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState(null);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+
+  // Filters
+  const [matchTypeFilter, setMatchTypeFilter] = useState(null); // null | 'SINGLES' | 'DOUBLES'
+  const [cityFilter, setCityFilter] = useState(""); // Default to user.homeCity if available, else empty string
+  
+  // Reference data
+  const [cities, setCities] = useState([]);
+  const [showCityPicker, setShowCityPicker] = useState(false);
 
   useEffect(() => {
     if (isNewUser) {
       navigation.navigate("Profile-create");
     }
+  }, [isNewUser]);
+
+  // Load cities once
+  useEffect(() => {
+    const loadCities = async () => {
+      try {
+        const response = await api("/reference/cities");
+        if (response.ok) {
+          const data = await response.json();
+          setCities(data);
+        }
+      } catch (err) {
+        console.error("Failed to load cities", err);
+      }
+    };
+    loadCities();
   }, []);
 
-  const handleCardPress = (card) => {
-    if (card.disabled) {
-      Alert.alert("Tournaments", "Tournaments are coming soon — stay tuned! 🏆");
-      return;
-    }
-    navigation.navigate(card.screen);
+  const fetchPosts = useCallback(
+    async (pageNum = 0, append = false) => {
+      if (!append) setLoading(true);
+      setError(null);
+
+      try {
+        const params = new URLSearchParams({
+          page: pageNum.toString(),
+          size: PAGE_SIZE.toString(),
+        });
+        if (matchTypeFilter) params.append("matchType", matchTypeFilter);
+        if (cityFilter) params.append("city", cityFilter);
+
+        const response = await api(`/match-post/feed?${params}`);
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to load open matches");
+        }
+
+        const newItems = (data.content || []).filter(Boolean);
+        if (append) {
+          setPosts((prev) => [...prev, ...newItems]);
+        } else {
+          setPosts(newItems);
+        }
+
+        setHasMore(!data.last);
+        setPage(pageNum);
+      } catch (err) {
+        setError(err.message || "Something went wrong");
+        if (!append) setPosts([]);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+        setLoadingMore(false);
+      }
+    },
+    [matchTypeFilter, cityFilter]
+  );
+
+  useEffect(() => {
+    fetchPosts(0, false);
+  }, [fetchPosts]);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchPosts(0, false);
   };
+
+  const handleLoadMore = () => {
+    if (loadingMore || !hasMore || loading) return;
+    setLoadingMore(true);
+    fetchPosts(page + 1, true);
+  };
+
+  const setFilter = (type) => {
+    setMatchTypeFilter((prev) => (prev === type ? null : type));
+  };
+
+  const renderPost = ({ item }) => {
+    if (!item) return null;
+    const slotsLeft = item.slotsTotal - item.slotsJoined;
+    const scheduledDate = item.scheduledAt
+      ? new Date(item.scheduledAt).toLocaleString([], {
+          dateStyle: "medium",
+          timeStyle: "short",
+        })
+      : "TBD";
+
+    const isSingles = item.matchType === "SINGLES";
+
+    return (
+      <TouchableOpacity
+        style={styles.cardBorder}
+        onPress={() => navigation.navigate("PostDetail", { postId: item.postId })}
+        activeOpacity={0.85}
+      >
+        <LinearGradient
+          colors={['#1E2640', '#121829']}
+          style={styles.cardInner}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          {/* Card Header */}
+          <View style={styles.cardHeader}>
+            <View
+              style={[
+                styles.typeBadge,
+                isSingles ? styles.singlesBadge : styles.doublesBadge,
+              ]}
+            >
+              <Text style={[styles.typeBadgeText, isSingles ? styles.singlesText : styles.doublesText]}>
+                {item.matchType}
+              </Text>
+            </View>
+            <Text style={styles.eloRange}>
+              🏆 {item.eloMin} – {item.eloMax} ELO
+            </Text>
+          </View>
+
+          {/* Title */}
+          <Text style={styles.titleText} numberOfLines={1}>
+            {item.title}
+          </Text>
+
+          {/* Location details */}
+          <View style={styles.infoRow}>
+            <Ionicons name="location-outline" size={15} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+            <Text
+              style={[styles.infoText, (!item.city && !item.location) && { color: Colors.textTertiary }]}
+              numberOfLines={1}
+            >
+              {item.city === "Other" && item.cityOther 
+                ? item.cityOther 
+                : item.city ? item.city : "City not specified"}
+              {item.location ? ` • ${item.location}` : ""}
+            </Text>
+          </View>
+
+          {/* Date & Time */}
+          <View style={styles.infoRow}>
+            <Ionicons name="calendar-outline" size={15} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+            <Text style={styles.infoText}>{scheduledDate}</Text>
+          </View>
+
+          {/* Card Footer */}
+          <View style={styles.cardFooter}>
+            <View style={styles.organizerRow}>
+              {item.organizerAvatarUrl ? (
+                <Image source={{ uri: item.organizerAvatarUrl }} style={styles.avatarWrap} />
+              ) : (
+                <LinearGradient
+                  colors={isSingles ? Colors.accentGreen : Colors.accentPurple}
+                  style={styles.avatarWrap}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={styles.avatarInitial}>
+                    {(item.organizerName || "?")[0].toUpperCase()}
+                  </Text>
+                </LinearGradient>
+              )}
+              <View>
+                <Text style={styles.organizerName}>{item.organizerName || "Unknown"}</Text>
+                <Text style={styles.organizerElo}>{item.organizerElo} ELO</Text>
+              </View>
+            </View>
+
+            <View style={[styles.slotsChip, slotsLeft === 0 ? styles.slotsFull : styles.slotsAvailable]}>
+              <Text style={[styles.slotsText, slotsLeft === 0 ? styles.slotsTextFull : styles.slotsTextAvailable]}>
+                {slotsLeft === 0 ? "Full" : `${slotsLeft} slot${slotsLeft !== 1 ? "s" : ""} left`}
+              </Text>
+            </View>
+          </View>
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderEmpty = () => {
+    if (loading) return null;
+    return (
+      <View style={styles.emptyContainer}>
+        <Ionicons name="search-outline" size={60} color={Colors.textTertiary} />
+        <Text style={styles.emptyTitle}>No open matches found</Text>
+        <Text style={styles.emptySubtitle}>Try adjusting your filters to find games near you</Text>
+      </View>
+    );
+  };
+
+  const renderError = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="cloud-offline-outline" size={60} color={Colors.danger} />
+      <Text style={styles.emptyTitle}>Something went wrong</Text>
+      <Text style={styles.emptySubtitle}>{error}</Text>
+      <TouchableOpacity style={styles.retryBtn} onPress={() => fetchPosts(0, false)}>
+        <Text style={styles.retryText}>Try Again</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   const firstName = user?.firstName || user?.name?.split(" ")?.[0] || "there";
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       <LinearGradient
         colors={[Colors.background, "#111827"]}
         style={styles.gradientBg}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.greeting}>Hi, {firstName} 👋</Text>
-              <Text style={styles.subGreeting}>Ready to play?</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.logoutBtn}
-              onPress={() =>
-                Alert.alert("Logout", "Are you sure you want to logout?", [
-                  { text: "Cancel", style: "cancel" },
-                  { text: "Logout", style: "destructive", onPress: logout },
-                ])
-              }
-              accessibilityLabel="Logout button"
-            >
-              <Ionicons name="log-out-outline" size={22} color={Colors.textSecondary} />
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>Hi, {firstName} 👋</Text>
+            <Text style={styles.subGreeting}>Ready to play?</Text>
+          </View>
+          
+          <View style={styles.headerIcons}>
+            <TouchableOpacity style={styles.iconBtn} accessibilityLabel="Messages" onPress={() => navigation.navigate("Messages")}>
+              <Ionicons name="chatbubble-ellipses-outline" size={24} color={Colors.textPrimary} />
+              {/* Badge placeholder for phase 9 */}
+              <View style={styles.badgePlaceholder} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.iconBtn} accessibilityLabel="Notifications" onPress={() => navigation.navigate("Notifications")}>
+              <Ionicons name="notifications-outline" size={24} color={Colors.textPrimary} />
+              {/* Badge placeholder for phase 9 */}
+              <View style={styles.badgePlaceholder} />
             </TouchableOpacity>
           </View>
+        </View>
 
-          {/* Glowing Stats Strip / Instruction */}
-          <View style={styles.statsStripBorder}>
-            <LinearGradient
-              colors={['rgba(0, 245, 160, 0.12)', 'rgba(0, 217, 245, 0.04)']}
-              style={styles.statsStrip}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
+        {/* Filter bar */}
+        <View style={styles.filterBar}>
+          {/* Match Type Filters */}
+          <View style={styles.typeFilters}>
+            <TouchableOpacity
+              style={[styles.filterChip, matchTypeFilter === "SINGLES" && styles.filterChipActive]}
+              onPress={() => setFilter("SINGLES")}
+              activeOpacity={0.8}
             >
-              <Ionicons name="flash-outline" size={16} color={Colors.primary} style={{ marginRight: Spacing.sm }} />
-              <Text style={styles.statsText}>Welcome to BadmintonConnect! Choose an action below to get started.</Text>
-            </LinearGradient>
-          </View>
-
-          {/* Section Label */}
-          <Text style={styles.sectionLabel}>QUICK ACTIONS</Text>
-
-          {/* Action Cards */}
-          {ACTION_CARDS.map((card) => {
-            const CardComponent = card.disabled ? View : TouchableOpacity;
-            const cardProps = card.disabled
-              ? {}
-              : {
-                  onPress: () => handleCardPress(card),
-                  activeOpacity: 0.85,
-                  accessibilityLabel: card.title,
-                };
-
-            return (
-              <CardComponent
-                key={card.id}
-                style={[
-                  styles.cardBorder,
-                  card.disabled && styles.cardDisabledBorder,
-                ]}
-                {...cardProps}
-              >
+              {matchTypeFilter === "SINGLES" ? (
                 <LinearGradient
-                  colors={card.disabled ? ['#13192B', '#0E1321'] : ['#1E2540', '#121829']}
-                  style={styles.cardInner}
+                  colors={Colors.accentGreen}
+                  style={styles.chipGradient}
                   start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
+                  end={{ x: 1, y: 0 }}
                 >
-                  <LinearGradient
-                    colors={card.gradient}
-                    style={styles.iconWrap}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <Ionicons
-                      name={card.icon}
-                      size={26}
-                      color={card.iconColor}
-                    />
-                  </LinearGradient>
-
-                  <View style={styles.cardText}>
-                    <Text style={[styles.cardTitle, card.disabled && styles.disabledText]}>
-                      {card.title}
-                    </Text>
-                    <Text style={[styles.cardSubtitle, card.disabled && styles.disabledText]}>
-                      {card.subtitle}
-                    </Text>
-                  </View>
-
-                  {card.badge ? (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{card.badge}</Text>
-                    </View>
-                  ) : (
-                    <Ionicons
-                      name="chevron-forward"
-                      size={20}
-                      color={Colors.textTertiary}
-                    />
-                  )}
+                  <Text style={[styles.filterChipText, { color: Colors.textInverse }]}>Singles</Text>
                 </LinearGradient>
-              </CardComponent>
-            );
-          })}
+              ) : (
+                <Text style={styles.filterChipText}>Singles</Text>
+              )}
+            </TouchableOpacity>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>BadmintonConnect · v1.0</Text>
+            <TouchableOpacity
+              style={[styles.filterChip, matchTypeFilter === "DOUBLES" && styles.filterChipActive]}
+              onPress={() => setFilter("DOUBLES")}
+              activeOpacity={0.8}
+            >
+              {matchTypeFilter === "DOUBLES" ? (
+                <LinearGradient
+                  colors={Colors.accentPurple}
+                  style={styles.chipGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Text style={[styles.filterChipText, { color: '#FFFFFF' }]}>Doubles</Text>
+                </LinearGradient>
+              ) : (
+                <Text style={styles.filterChipText}>Doubles</Text>
+              )}
+            </TouchableOpacity>
           </View>
-        </ScrollView>
+          
+          {/* City Filter Placeholder */}
+          <TouchableOpacity 
+            style={styles.cityFilterBtn}
+            onPress={() => setShowCityPicker(!showCityPicker)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="location" size={16} color={cityFilter ? Colors.primary : Colors.textSecondary} />
+            <Text style={[styles.cityFilterText, cityFilter && styles.cityFilterTextActive]} numberOfLines={1}>
+              {cityFilter ? cityFilter : "All Cities"}
+            </Text>
+            <Ionicons name="chevron-down" size={14} color={Colors.textTertiary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* City Picker Dropdown (simple inline version for now) */}
+        {showCityPicker && (
+          <View style={styles.cityPickerContainer}>
+            <TouchableOpacity 
+              style={styles.cityOption} 
+              onPress={() => { setCityFilter(""); setShowCityPicker(false); }}
+            >
+              <Text style={[styles.cityOptionText, !cityFilter && styles.cityOptionActive]}>All Cities</Text>
+              {!cityFilter && <Ionicons name="checkmark" size={18} color={Colors.primary} />}
+            </TouchableOpacity>
+            
+            {cities.map(city => (
+              <TouchableOpacity 
+                key={city}
+                style={styles.cityOption} 
+                onPress={() => { setCityFilter(city); setShowCityPicker(false); }}
+              >
+                <Text style={[styles.cityOptionText, cityFilter === city && styles.cityOptionActive]}>{city}</Text>
+                {cityFilter === city && <Ionicons name="checkmark" size={18} color={Colors.primary} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Content List */}
+        {loading && !refreshing ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={styles.loadingText}>Loading open matches…</Text>
+          </View>
+        ) : error ? (
+          renderError()
+        ) : (
+          <FlatList
+            data={posts}
+            keyExtractor={(item, idx) => (item?.postId ? item.postId.toString() : idx.toString())}
+            renderItem={renderPost}
+            ListEmptyComponent={renderEmpty}
+            contentContainerStyle={[styles.list, posts.length === 0 && styles.listEmpty]}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={Colors.primary}
+                colors={[Colors.primary]}
+              />
+            }
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.3}
+            ListFooterComponent={
+              loadingMore ? (
+                <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 16 }} />
+              ) : null
+            }
+          />
+        )}
       </LinearGradient>
     </SafeAreaView>
   );
@@ -219,21 +402,14 @@ const styles = StyleSheet.create({
   gradientBg: {
     flex: 1,
   },
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xxl,
-  },
 
   // Header
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: Spacing.lg,
-    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
   },
   greeting: {
     fontSize: Typography.h1,
@@ -245,7 +421,11 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 2,
   },
-  logoutBtn: {
+  headerIcons: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  iconBtn: {
     width: 44,
     height: 44,
     borderRadius: Radius.full,
@@ -255,104 +435,290 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-
-  // Stats strip
-  statsStripBorder: {
-    borderRadius: Radius.md,
-    overflow: "hidden",
+  badgePlaceholder: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.danger,
     borderWidth: 1,
-    borderColor: Colors.borderGlow,
-    marginBottom: Spacing.lg,
-    ...Shadow.glow,
+    borderColor: Colors.surface,
   },
-  statsStrip: {
+
+  // Filter bar
+  filterBar: {
     flexDirection: "row",
     alignItems: "center",
-    padding: Spacing.sm + 2,
-    paddingHorizontal: Spacing.md,
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    zIndex: 10,
   },
-  statsText: {
-    flex: 1,
-    fontSize: Typography.bodySmall,
-    color: Colors.primary,
-    fontWeight: FontWeight.medium,
-    lineHeight: 18,
-  },
-
-  // Section label
-  sectionLabel: {
-    fontSize: Typography.label,
-    fontWeight: FontWeight.bold,
-    color: Colors.textTertiary,
-    letterSpacing: 1.5,
-    marginBottom: Spacing.md,
-  },
-
-  // Action card border wrap
-  cardBorder: {
-    borderRadius: Radius.lg,
-    marginBottom: Spacing.sm + 2,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: "hidden",
-    ...Shadow.md,
-  },
-  cardDisabledBorder: {
-    borderColor: Colors.borderLight,
-    opacity: 0.5,
-  },
-  cardInner: {
+  typeFilters: {
     flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.md,
+    gap: Spacing.sm,
   },
-  iconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: Radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.md,
-    ...Shadow.sm,
-  },
-  cardText: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: Typography.h4,
-    fontWeight: FontWeight.bold,
-    color: Colors.textPrimary,
-    marginBottom: 2,
-  },
-  cardSubtitle: {
-    fontSize: Typography.bodySmall,
-    color: Colors.textSecondary,
-  },
-  disabledText: {
-    color: Colors.disabledText,
-  },
-
-  // Coming Soon badge
-  badge: {
-    backgroundColor: Colors.comingSoon,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
+  filterChip: {
     borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Colors.border,
+    backgroundColor: "rgba(255, 255, 255, 0.02)",
+    overflow: "hidden",
   },
-  badgeText: {
-    fontSize: Typography.caption,
-    fontWeight: FontWeight.semiBold,
-    color: Colors.comingSoonText,
+  filterChipActive: {
+    borderWidth: 0,
   },
-
-  footer: {
-    marginTop: Spacing.xxl,
+  chipGradient: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 7,
+    justifyContent: "center",
     alignItems: "center",
   },
-  footerText: {
+  filterChipText: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    fontSize: Typography.bodySmall,
+    fontWeight: FontWeight.semiBold,
+    color: Colors.textSecondary,
+  },
+  
+  // City Filter
+  cityFilterBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(9, 13, 26, 0.6)",
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    maxWidth: 140,
+    gap: 4,
+  },
+  cityFilterText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.medium,
+    flexShrink: 1,
+  },
+  cityFilterTextActive: {
+    color: Colors.primary,
+    fontWeight: FontWeight.bold,
+  },
+  
+  // City Picker (Dropdown)
+  cityPickerContainer: {
+    position: "absolute",
+    top: 135,
+    right: Spacing.lg,
+    width: 180,
+    maxHeight: 250,
+    backgroundColor: Colors.surfaceElevated,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.lg,
+    zIndex: 100,
+    elevation: 10, // for Android
+  },
+  cityOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  cityOptionText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.body,
+  },
+  cityOptionActive: {
+    color: Colors.primary,
+    fontWeight: FontWeight.bold,
+  },
+
+  // List
+  list: {
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xxl + 40,
+    gap: Spacing.sm,
+  },
+  listEmpty: {
+    flex: 1,
+  },
+
+  // Card Border wrap
+  cardBorder: {
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
+    marginBottom: Spacing.sm,
+    ...Shadow.md,
+  },
+  cardInner: {
+    padding: Spacing.md,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
+  },
+  typeBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: Radius.sm,
+  },
+  singlesBadge: {
+    backgroundColor: "rgba(0, 245, 160, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(0, 245, 160, 0.2)",
+  },
+  doublesBadge: {
+    backgroundColor: "rgba(139, 92, 246, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(139, 92, 246, 0.2)",
+  },
+  typeBadgeText: {
+    fontSize: Typography.caption,
+    fontWeight: FontWeight.bold,
+  },
+  singlesText: {
+    color: Colors.primary,
+  },
+  doublesText: {
+    color: "#8B5CF6",
+  },
+  eloRange: {
+    fontSize: Typography.caption,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.semiBold,
+  },
+  titleText: {
+    fontSize: Typography.body,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: Typography.bodySmall,
+    color: Colors.textSecondary,
+  },
+
+  // Card footer
+  cardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: Spacing.md,
+    marginTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  organizerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  avatarWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Shadow.sm,
+  },
+  avatarInitial: {
+    fontSize: Typography.bodySmall,
+    fontWeight: FontWeight.bold,
+    color: Colors.textInverse,
+  },
+  organizerName: {
+    fontSize: Typography.bodySmall,
+    fontWeight: FontWeight.semiBold,
+    color: Colors.textPrimary,
+  },
+  organizerElo: {
     fontSize: Typography.caption,
     color: Colors.textTertiary,
+  },
+  slotsChip: {
+    paddingHorizontal: Spacing.sm + 2,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+  },
+  slotsAvailable: {
+    backgroundColor: Colors.successLight,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+  },
+  slotsFull: {
+    backgroundColor: Colors.dangerLight,
+    borderColor: "rgba(239, 68, 68, 0.2)",
+  },
+  slotsText: {
+    fontSize: Typography.caption,
+    fontWeight: FontWeight.bold,
+  },
+  slotsTextAvailable: {
+    color: Colors.success,
+  },
+  slotsTextFull: {
+    color: Colors.danger,
+  },
+
+  // Empty / Error
+  emptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.xl,
+    marginTop: 80,
+  },
+  emptyTitle: {
+    fontSize: Typography.h3,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    marginTop: Spacing.md,
+  },
+  emptySubtitle: {
+    fontSize: Typography.body,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    marginTop: Spacing.sm,
+  },
+  retryBtn: {
+    marginTop: Spacing.lg,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.md,
+  },
+  retryText: {
+    color: Colors.textInverse,
+    fontWeight: FontWeight.bold,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.md,
+  },
+  loadingText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.body,
   },
 });
