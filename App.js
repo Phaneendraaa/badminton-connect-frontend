@@ -83,7 +83,6 @@ function TournamentStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="TournamentMain" component={Tournament} />
-      <Stack.Screen name="PublicProfile" component={PublicProfile} />
     </Stack.Navigator>
   );
 }

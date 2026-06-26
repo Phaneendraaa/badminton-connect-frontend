@@ -369,8 +369,10 @@ export default function ChallengeRoom({ route, navigation }) {
           </View>
         )}
 
-        {/* Invite Section */}
-        {!isFull && matchDetails?.status === 'PENDING' && isOrganizer && (
+        {/* Invite Section — CHALLENGE origin only.
+             Open-post organizers fill their match via the join-request system,
+             not by directly searching and inviting players by phone number. */}
+        {!isFull && matchDetails?.status === 'PENDING' && isOrganizer && matchDetails?.origin === 'CHALLENGE' && (
           <View style={styles.inviteContainer}>
             <Text style={styles.sectionTitle}>Invite Player</Text>
             <View style={[styles.inputWrap, focusedMobile && styles.inputWrapActive]}>
@@ -412,6 +414,30 @@ export default function ChallengeRoom({ route, navigation }) {
                   </TouchableOpacity>
                 </LinearGradient>
               </View>
+            )}
+          </View>
+        )}
+
+        {/* Open-post organizer waiting state.
+             They fill their match via join requests, not by direct invite. */}
+        {!isFull && matchDetails?.status === 'PENDING' && isOrganizer && matchDetails?.origin === 'OPEN' && (
+          <View style={styles.openPostWaitingContainer}>
+            <Ionicons name="time-outline" size={36} color={Colors.textTertiary} />
+            <Text style={styles.openPostWaitingTitle}>Waiting for players to join</Text>
+            <Text style={styles.openPostWaitingBody}>
+              Players can request to join via your public post. Accept or reject them from the post page.
+            </Text>
+            {matchDetails?.postId && (
+              <TouchableOpacity
+                style={styles.viewPostBtn}
+                onPress={() => navigation.navigate('PostDetail', { postId: matchDetails.postId })}
+                activeOpacity={0.85}
+              >
+                <LinearGradient colors={Colors.accentPurple} style={styles.viewPostBtnInner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                  <Ionicons name="document-text-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
+                  <Text style={styles.buttonText}>View Post & Manage Requests</Text>
+                </LinearGradient>
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -784,5 +810,41 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  openPostWaitingContainer: {
+    marginTop: Spacing.lg,
+    padding: Spacing.xl,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: "rgba(255, 255, 255, 0.02)",
+    alignItems: "center",
+  },
+  openPostWaitingTitle: {
+    fontSize: Typography.body,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+    textAlign: "center",
+  },
+  openPostWaitingBody: {
+    fontSize: Typography.bodySmall,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: Spacing.lg,
+  },
+  viewPostBtn: {
+    width: "100%",
+    borderRadius: Radius.md,
+    overflow: "hidden",
+  },
+  viewPostBtnInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.lg,
   },
 });

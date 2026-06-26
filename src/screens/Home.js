@@ -31,13 +31,42 @@ export default function Home() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
+  // Badge counts for header icons
+  const [notifUnread, setNotifUnread] = useState(0);
+  const [messageUnread, setMessageUnread] = useState(0);
+
   // Filters
   const [matchTypeFilter, setMatchTypeFilter] = useState(null); // null | 'SINGLES' | 'DOUBLES'
   const [cityFilter, setCityFilter] = useState(""); // Default to user.homeCity if available, else empty string
-  
+
   // Reference data
   const [cities, setCities] = useState([]);
   const [showCityPicker, setShowCityPicker] = useState(false);
+
+  // Fetch badge counts on mount
+  useEffect(() => {
+    fetchBadgeCounts();
+  }, []);
+
+  const fetchBadgeCounts = async () => {
+    try {
+      const [notifRes, threadsRes] = await Promise.all([
+        api("/notifications/unread-count"),
+        api("/match-chat/threads"),
+      ]);
+      if (notifRes.ok) {
+        const d = await notifRes.json();
+        setNotifUnread(d.count || 0);
+      }
+      if (threadsRes.ok) {
+        const threads = await threadsRes.json();
+        const total = (threads || []).reduce((sum, t) => sum + (t.unreadCount || 0), 0);
+        setMessageUnread(total);
+      }
+    } catch (e) {
+      // Non-critical — badges just won't show counts if this fails
+    }
+  };
 
   useEffect(() => {
     if (isNewUser) {
@@ -261,16 +290,40 @@ export default function Home() {
           </View>
           
           <View style={styles.headerIcons}>
-            <TouchableOpacity style={styles.iconBtn} accessibilityLabel="Messages" onPress={() => navigation.navigate("Messages")}>
+            <TouchableOpacity
+              style={styles.iconBtn}
+              accessibilityLabel="Messages"
+              onPress={() => {
+                fetchBadgeCounts();
+                navigation.navigate("Messages");
+              }}
+            >
               <Ionicons name="chatbubble-ellipses-outline" size={24} color={Colors.textPrimary} />
-              {/* Badge placeholder for phase 9 */}
-              <View style={styles.badgePlaceholder} />
+              {messageUnread > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {messageUnread > 9 ? "9+" : messageUnread}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.iconBtn} accessibilityLabel="Notifications" onPress={() => navigation.navigate("Notifications")}>
+
+            <TouchableOpacity
+              style={styles.iconBtn}
+              accessibilityLabel="Notifications"
+              onPress={() => {
+                fetchBadgeCounts();
+                navigation.navigate("Notifications");
+              }}
+            >
               <Ionicons name="notifications-outline" size={24} color={Colors.textPrimary} />
-              {/* Badge placeholder for phase 9 */}
-              <View style={styles.badgePlaceholder} />
+              {notifUnread > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {notifUnread > 9 ? "9+" : notifUnread}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -435,16 +488,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  badgePlaceholder: {
+  badge: {
     position: "absolute",
-    top: 10,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 6,
+    right: 6,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: Colors.danger,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: FontWeight.bold,
+    color: Colors.textInverse,
   },
 
   // Filter bar
