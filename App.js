@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { TouchableOpacity, View, StyleSheet, Text } from "react-native";
-import { NavigationContainer, useNavigation } from "@react-navigation/native";
+import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,6 +23,9 @@ import PostDetail from "./src/screens/PostDetail";
 import MatchChat from "./src/screens/MatchChat";
 import ChoiceSheet from "./src/screens/ChoiceSheet";
 import Tournament from "./src/screens/Tournament";
+import TeamFormation from "./src/screens/TeamFormation";
+import PostInquiry from "./src/screens/PostInquiry";
+import SearchPlayers from "./src/screens/SearchPlayers";
 
 import { Colors, Radius, Shadow } from "./src/theme/tokens";
 
@@ -47,6 +50,9 @@ function HomeStack() {
       <Stack.Screen name="Notifications" component={Notifications} />
       <Stack.Screen name="Messages" component={Messages} />
       <Stack.Screen name="PublicProfile" component={PublicProfile} />
+      <Stack.Screen name="TeamFormation" component={TeamFormation} />
+      <Stack.Screen name="PostInquiry" component={PostInquiry} />
+      <Stack.Screen name="SearchPlayers" component={SearchPlayers} />
     </Stack.Navigator>
   );
 }
@@ -64,6 +70,8 @@ function ActivityStack() {
       <Stack.Screen name="CreatePost" component={CreatePost} />
       <Stack.Screen name="Challenge-Match" component={ChallengeMatch} />
       <Stack.Screen name="PublicProfile" component={PublicProfile} />
+      <Stack.Screen name="TeamFormation" component={TeamFormation} />
+      <Stack.Screen name="PostInquiry" component={PostInquiry} />
     </Stack.Navigator>
   );
 }
@@ -74,6 +82,8 @@ function ProfileStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ProfileMain" component={Profile} />
       <Stack.Screen name="MatchHistory" component={MatchHistory} />
+      <Stack.Screen name="PublicProfile" component={PublicProfile} />
+      <Stack.Screen name="SearchPlayers" component={SearchPlayers} />
     </Stack.Navigator>
   );
 }
@@ -92,9 +102,10 @@ function TournamentStack() {
 // ── Main Tab Navigator (authenticated) ───────────────────────────────────────
 function MainTabs() {
   const [showChoiceSheet, setShowChoiceSheet] = useState(false);
-  const navigation = useNavigation();
-  // We need navigation from the Tab navigator to push screens globally.
-  // We use a ref-based approach: each action navigates into the relevant tab stack.
+  // tabNavRef captures the Tab navigator's navigation object from listeners.
+  // useNavigation() here gives the parent Stack's navigation which does NOT
+  // know about "HomeTab" — we must use the Tab navigator's own nav instead.
+  const tabNavRef = React.useRef(null);
 
   return (
     <>
@@ -144,15 +155,14 @@ function MainTabs() {
         <Tab.Screen
           name="PlusTab"
           component={HomeStack}
-          options={{
-            tabBarLabel: "Create",
-          }}
-          listeners={{
+          options={{ tabBarLabel: "Create" }}
+          listeners={({ navigation: tabNav }) => ({
             tabPress: (e) => {
               e.preventDefault(); // Don't navigate — just show sheet
+              tabNavRef.current = tabNav; // capture Tab navigator's navigation
               setShowChoiceSheet(true);
             },
-          }}
+          })}
         />
         <Tab.Screen
           name="TournamentTab"
@@ -172,11 +182,12 @@ function MainTabs() {
         onClose={() => setShowChoiceSheet(false)}
         onPostOpen={() => {
           setShowChoiceSheet(false);
-          navigation.navigate("HomeTab", { screen: "CreatePost" });
+          // Use the Tab navigator's navigation — it knows about "HomeTab"
+          tabNavRef.current?.navigate("HomeTab", { screen: "CreatePost" });
         }}
         onChallengeFriend={() => {
           setShowChoiceSheet(false);
-          navigation.navigate("HomeTab", { screen: "Challenge-Match" });
+          tabNavRef.current?.navigate("HomeTab", { screen: "Challenge-Match" });
         }}
       />
     </>

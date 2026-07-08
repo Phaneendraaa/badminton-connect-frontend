@@ -19,17 +19,25 @@ export default function PublicProfile({ route, navigation }) {
   const { userId } = route.params;
   
   const [profile, setProfile] = useState(null);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const response = await api(`/profile/${userId}`);
-        if (response.ok) {
-          const data = await response.json();
+        const [profileRes, statsRes] = await Promise.all([
+          api(`/profile/${userId}`),
+          api(`/profile/${userId}/stats`),
+        ]);
+        if (profileRes.ok) {
+          const data = await profileRes.json();
           setProfile(data);
         } else {
           throw new Error("Failed to load profile data");
+        }
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          setStats(statsData);
         }
       } catch (error) {
         console.error(error);
@@ -94,6 +102,26 @@ export default function PublicProfile({ route, navigation }) {
                 <Ionicons name="male-female" size={14} color={Colors.primary} style={{ marginRight: 4 }} />
                 <Text style={styles.tagText}>{profile?.genderEnum}</Text>
               </View>
+            </View>
+          </View>
+
+          {/* Stats Card */}
+          <View style={styles.statsCard}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{stats?.matchesPlayed ?? "—"}</Text>
+              <Text style={styles.statLabel}>Matches</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>
+                {stats ? `${Math.round(stats.winRate)}%` : "—"}
+              </Text>
+              <Text style={styles.statLabel}>Win Rate</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{stats?.trustScore ?? "—"}</Text>
+              <Text style={styles.statLabel}>Trust Score</Text>
             </View>
           </View>
 
@@ -235,5 +263,41 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: Typography.body,
     fontWeight: FontWeight.bold,
+  },
+
+  // Stats row
+  statsCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    backgroundColor: Colors.surfaceGlass,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingVertical: Spacing.lg,
+    marginTop: Spacing.lg,
+    ...Shadow.md,
+  },
+  statItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  statValue: {
+    fontSize: Typography.h2,
+    fontWeight: FontWeight.extraBold,
+    color: Colors.primary,
+  },
+  statLabel: {
+    fontSize: Typography.caption,
+    color: Colors.textTertiary,
+    marginTop: 4,
+    fontWeight: FontWeight.medium,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: Colors.border,
   },
 });

@@ -16,6 +16,7 @@ import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { Colors, Spacing, Radius, Typography, FontWeight, Shadow } from "../theme/tokens";
 import { useNavigation } from "@react-navigation/native";
+import CitySearchPicker from "../components/CitySearchPicker";
 
 const PAGE_SIZE = 20;
 
@@ -37,7 +38,8 @@ export default function Home() {
 
   // Filters
   const [matchTypeFilter, setMatchTypeFilter] = useState(null); // null | 'SINGLES' | 'DOUBLES'
-  const [cityFilter, setCityFilter] = useState(""); // Default to user.homeCity if available, else empty string
+  // Default cityFilter to the user's home city (if set) so the feed is personalised on first load.
+  const [cityFilter, setCityFilter] = useState(user?.homeCity || "");
 
   // Reference data
   const [cities, setCities] = useState([]);
@@ -67,6 +69,13 @@ export default function Home() {
       // Non-critical — badges just won't show counts if this fails
     }
   };
+
+  // Sync homeCity from profile if not already set in filter
+  useEffect(() => {
+    if (!cityFilter && user?.homeCity) {
+      setCityFilter(user.homeCity);
+    }
+  }, [user?.homeCity]);
 
   useEffect(() => {
     if (isNewUser) {
@@ -292,6 +301,14 @@ export default function Home() {
           <View style={styles.headerIcons}>
             <TouchableOpacity
               style={styles.iconBtn}
+              accessibilityLabel="Search Players"
+              onPress={() => navigation.navigate("SearchPlayers")}
+            >
+              <Ionicons name="search" size={24} color={Colors.textPrimary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.iconBtn}
               accessibilityLabel="Messages"
               onPress={() => {
                 fetchBadgeCounts();
@@ -371,43 +388,32 @@ export default function Home() {
             </TouchableOpacity>
           </View>
           
-          {/* City Filter Placeholder */}
-          <TouchableOpacity 
+          {/* City Filter */}
+          <TouchableOpacity
             style={styles.cityFilterBtn}
-            onPress={() => setShowCityPicker(!showCityPicker)}
+            onPress={() => setShowCityPicker(true)}
             activeOpacity={0.8}
           >
             <Ionicons name="location" size={16} color={cityFilter ? Colors.primary : Colors.textSecondary} />
             <Text style={[styles.cityFilterText, cityFilter && styles.cityFilterTextActive]} numberOfLines={1}>
-              {cityFilter ? cityFilter : "All Cities"}
+              {cityFilter || "All Cities"}
             </Text>
             <Ionicons name="chevron-down" size={14} color={Colors.textTertiary} />
           </TouchableOpacity>
         </View>
 
-        {/* City Picker Dropdown (simple inline version for now) */}
-        {showCityPicker && (
-          <View style={styles.cityPickerContainer}>
-            <TouchableOpacity 
-              style={styles.cityOption} 
-              onPress={() => { setCityFilter(""); setShowCityPicker(false); }}
-            >
-              <Text style={[styles.cityOptionText, !cityFilter && styles.cityOptionActive]}>All Cities</Text>
-              {!cityFilter && <Ionicons name="checkmark" size={18} color={Colors.primary} />}
-            </TouchableOpacity>
-            
-            {cities.map(city => (
-              <TouchableOpacity 
-                key={city}
-                style={styles.cityOption} 
-                onPress={() => { setCityFilter(city); setShowCityPicker(false); }}
-              >
-                <Text style={[styles.cityOptionText, cityFilter === city && styles.cityOptionActive]}>{city}</Text>
-                {cityFilter === city && <Ionicons name="checkmark" size={18} color={Colors.primary} />}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        {/* CitySearchPicker Modal */}
+        <CitySearchPicker
+          visible={showCityPicker}
+          cities={cities}
+          selectedCity={cityFilter || null}
+          onSelect={(city) => {
+            setCityFilter(city || "");
+            setShowCityPicker(false);
+          }}
+          onClose={() => setShowCityPicker(false)}
+          allowAll
+        />
 
         {/* Content List */}
         {loading && !refreshing ? (

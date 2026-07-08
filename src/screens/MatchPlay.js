@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, TextInput, Image, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Image, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from '@expo/vector-icons';
@@ -16,15 +16,12 @@ export default function MatchPlay({ route, navigation }) {
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // States for new set input
+  // States for new set input — using integer steppers, not free-text
   const [currentSetNumber, setCurrentSetNumber] = useState(1);
-  const [teamAScore, setTeamAScore] = useState("");
-  const [teamBScore, setTeamBScore] = useState("");
+  const [teamAScore, setTeamAScore] = useState(0);
+  const [teamBScore, setTeamBScore] = useState(0);
   const [saving, setSaving] = useState(false);
   const [editingSetNum, setEditingSetNum] = useState(null);
-
-  // Focus states
-  const [focusedInput, setFocusedInput] = useState(null);
 
   useEffect(() => {
     fetchMatchData();
@@ -62,19 +59,9 @@ export default function MatchPlay({ route, navigation }) {
   const teamBSetWins = sets.filter(s => s.setWinner === "TEAM_B").length;
 
   const saveSet = async (setNum, aScore, bScore) => {
-    if (aScore === "" || bScore === "") {
-        Alert.alert("Error", "Please enter scores for both teams");
-        return;
-    }
-    const a = parseInt(aScore);
-    const b = parseInt(bScore);
-    if (isNaN(a) || isNaN(b) || a < 0 || b < 0) {
-        Alert.alert("Error", "Please enter valid positive scores");
-        return;
-    }
-    if (a === b) {
-        Alert.alert("Error", "Scores cannot be tied in a set");
-        return;
+    if (aScore === bScore) {
+      Alert.alert("Invalid", "Scores cannot be tied in a set");
+      return;
     }
     try {
       setSaving(true);
@@ -82,13 +69,13 @@ export default function MatchPlay({ route, navigation }) {
         method: "POST",
         body: JSON.stringify({
           setNumber: setNum,
-          teamAScore: a,
-          teamBScore: b
+          teamAScore: aScore,
+          teamBScore: bScore
         })
       });
       if (res.ok) {
-        setTeamAScore("");
-        setTeamBScore("");
+        setTeamAScore(0);
+        setTeamBScore(0);
         setEditingSetNum(null);
         await fetchMatchData();
         Alert.alert("Success", `Set ${setNum} saved! ⚡`);
@@ -127,10 +114,10 @@ export default function MatchPlay({ route, navigation }) {
   };
 
   const handleEditSet = (s) => {
-    setTeamAScore(s.teamAScore.toString());
-    setTeamBScore(s.teamBScore.toString());
+    setTeamAScore(s.teamAScore);
+    setTeamBScore(s.teamBScore);
     setEditingSetNum(s.setNumber);
-    Alert.alert("Edit Set", `Now editing Set ${s.setNumber}. Please enter the corrected scores in the form below and save.`);
+    Alert.alert("Edit Set", `Now editing Set ${s.setNumber}. Adjust the scores and press Update.`);
   };
 
   const confirmFinishMatch = () => {
@@ -227,7 +214,7 @@ export default function MatchPlay({ route, navigation }) {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
-              <Text style={styles.teamHeaderText}>Team A</Text>
+              <Text style={styles.teamHeaderText}>{matchDetails?.teamAName || "Team A"}</Text>
               <Text style={styles.setWinCount}>{teamASetWins} sets</Text>
             </LinearGradient>
             <View style={styles.teamBody}>
@@ -266,7 +253,7 @@ export default function MatchPlay({ route, navigation }) {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
-              <Text style={styles.teamHeaderText}>Team B</Text>
+              <Text style={styles.teamHeaderText}>{matchDetails?.teamBName || "Team B"}</Text>
               <Text style={styles.setWinCount}>{teamBSetWins} sets</Text>
             </LinearGradient>
             <View style={styles.teamBody}>
@@ -356,45 +343,62 @@ export default function MatchPlay({ route, navigation }) {
               )}
             </View>
 
-            <View style={styles.scoreInputContainer}>
-              <View style={styles.scoreInputGroup}>
-                <Text style={styles.inputLabel}>TEAM A</Text>
-                <View style={[styles.scoreInputWrap, focusedInput === "teamA" && styles.scoreInputWrapActive]}>
-                  <TextInput 
-                    style={styles.scoreInput} 
-                    keyboardType="phone-pad" 
-                    value={teamAScore} 
-                    onFocus={() => setFocusedInput("teamA")}
-                    onBlur={() => setFocusedInput(null)}
-                    onChangeText={setTeamAScore}
-                    placeholder="0"
-                    placeholderTextColor={Colors.textTertiary}
-                  />
+          {/* +/− Stepper Score Input */}
+          <View style={styles.scoreInputContainer}>
+            {/* Team A Stepper */}
+            <View style={styles.scoreInputGroup}>
+              <Text style={styles.inputLabel}>{matchDetails?.teamAName || "TEAM A"}</Text>
+              <View style={styles.stepperRow}>
+                <TouchableOpacity
+                  style={styles.stepperBtn}
+                  onPress={() => setTeamAScore(Math.max(0, teamAScore - 1))}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="remove" size={22} color={Colors.textPrimary} />
+                </TouchableOpacity>
+                <View style={styles.stepperDisplay}>
+                  <Text style={styles.stepperValue}>{teamAScore}</Text>
                 </View>
-              </View>
-
-              <Text style={styles.inputVs}>VS</Text>
-
-              <View style={styles.scoreInputGroup}>
-                <Text style={styles.inputLabel}>TEAM B</Text>
-                <View style={[styles.scoreInputWrap, focusedInput === "teamB" && styles.scoreInputWrapActive]}>
-                  <TextInput 
-                    style={styles.scoreInput} 
-                    keyboardType="phone-pad" 
-                    value={teamBScore} 
-                    onFocus={() => setFocusedInput("teamB")}
-                    onBlur={() => setFocusedInput(null)}
-                    onChangeText={setTeamBScore}
-                    placeholder="0"
-                    placeholderTextColor={Colors.textTertiary}
-                  />
-                </View>
+                <TouchableOpacity
+                  style={styles.stepperBtn}
+                  onPress={() => setTeamAScore(teamAScore + 1)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="add" size={22} color={Colors.textPrimary} />
+                </TouchableOpacity>
               </View>
             </View>
 
-            <TouchableOpacity 
-              style={styles.buttonWrapper} 
-              onPress={() => saveSet(editingSetNum || currentSetNumber, teamAScore, teamBScore)} 
+            <Text style={styles.inputVs}>VS</Text>
+
+            {/* Team B Stepper */}
+            <View style={styles.scoreInputGroup}>
+              <Text style={styles.inputLabel}>{matchDetails?.teamBName || "TEAM B"}</Text>
+              <View style={styles.stepperRow}>
+                <TouchableOpacity
+                  style={styles.stepperBtn}
+                  onPress={() => setTeamBScore(Math.max(0, teamBScore - 1))}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="remove" size={22} color={Colors.textPrimary} />
+                </TouchableOpacity>
+                <View style={styles.stepperDisplay}>
+                  <Text style={styles.stepperValue}>{teamBScore}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.stepperBtn}
+                  onPress={() => setTeamBScore(teamBScore + 1)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="add" size={22} color={Colors.textPrimary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+            <TouchableOpacity
+              style={styles.buttonWrapper}
+              onPress={() => saveSet(editingSetNum || currentSetNumber, teamAScore, teamBScore)}
               disabled={saving}
               activeOpacity={0.85}
             >
@@ -793,15 +797,35 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  scoreInputWrapActive: {
-    borderColor: Colors.primary,
+  // Stepper controls
+  stepperRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
   },
-  scoreInput: {
-    width: "100%",
-    height: "100%",
-    textAlign: "center",
-    fontSize: 26,
-    fontWeight: FontWeight.bold,
+  stepperBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepperDisplay: {
+    width: 66,
+    height: 66,
+    borderRadius: Radius.md,
+    backgroundColor: "rgba(9,13,26,0.7)",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepperValue: {
+    fontSize: 32,
+    fontWeight: FontWeight.extraBold,
     color: Colors.textPrimary,
   },
   inputVs: {

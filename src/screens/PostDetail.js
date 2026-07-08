@@ -180,48 +180,72 @@ export default function PostDetail({ route, navigation }) {
   const renderCTA = () => {
     if (!post) return null;
 
-    // Accepted joiner — go to chat
+    // ── Accepted joiner — go to chat
     if (myRequest?.status === "ACCEPTED") {
       return (
-        <TouchableOpacity
-          style={styles.ctaBtnWrapper}
-          onPress={() => navigation.navigate("MatchChat", { matchId: post.matchId })}
-          activeOpacity={0.85}
-        >
-          <LinearGradient
-            colors={Colors.accentPurple}
-            style={styles.ctaBtn}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+        <>
+          <TouchableOpacity
+            style={styles.ctaBtnWrapper}
+            onPress={() => navigation.navigate("MatchChat", { matchId: post.matchId })}
+            activeOpacity={0.85}
           >
-            <Ionicons name="chatbubbles" size={20} color="#FFFFFF" style={{ marginRight: Spacing.sm }} />
-            <Text style={[styles.ctaBtnText, { color: '#FFFFFF' }]}>Go to Match Chat</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+            <LinearGradient
+              colors={Colors.accentPurple}
+              style={styles.ctaBtn}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Ionicons name="chatbubbles" size={20} color="#FFFFFF" style={{ marginRight: Spacing.sm }} />
+              <Text style={[styles.ctaBtnText, { color: '#FFFFFF' }]}>Go to Match Chat</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.ctaBtnWrapper, { marginTop: Spacing.sm }]}
+            onPress={() => navigation.navigate("PostInquiry", { postId, postTitle: post.title })}
+            activeOpacity={0.85}
+          >
+            <View style={styles.inquiryBtn}>
+              <Ionicons name="chatbubble-ellipses-outline" size={18} color={Colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.inquiryBtnText}>Open Post Inquiries</Text>
+            </View>
+          </TouchableOpacity>
+        </>
       );
     }
 
-    // Pending request
+    // ── Pending request
     if (myRequest?.status === "PENDING") {
       return (
-        <View style={styles.pendingRow}>
-          <View style={styles.pendingBadge}>
-            <Ionicons name="time" size={16} color={Colors.warning} style={{ marginRight: 6 }} />
-            <Text style={styles.pendingText}>Request Pending</Text>
+        <>
+          <View style={styles.pendingRow}>
+            <View style={styles.pendingBadge}>
+              <Ionicons name="time" size={16} color={Colors.warning} style={{ marginRight: 6 }} />
+              <Text style={styles.pendingText}>Request Pending</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.cancelReqBtn}
+              onPress={handleCancelRequest}
+              disabled={actionLoading}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.cancelReqText}>Withdraw</Text>
+            </TouchableOpacity>
           </View>
           <TouchableOpacity
-            style={styles.cancelReqBtn}
-            onPress={handleCancelRequest}
-            disabled={actionLoading}
-            activeOpacity={0.8}
+            style={[styles.ctaBtnWrapper, { marginTop: Spacing.md }]}
+            onPress={() => navigation.navigate("PostInquiry", { postId, postTitle: post.title })}
+            activeOpacity={0.85}
           >
-            <Text style={styles.cancelReqText}>Withdraw</Text>
+            <View style={styles.inquiryBtn}>
+              <Ionicons name="chatbubble-ellipses-outline" size={18} color={Colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.inquiryBtnText}>Ask the Organizer</Text>
+            </View>
           </TouchableOpacity>
-        </View>
+        </>
       );
     }
 
-    // Rejected
+    // ── Rejected
     if (myRequest?.status === "REJECTED") {
       return (
         <View style={styles.rejectedBadge}>
@@ -231,25 +255,32 @@ export default function PostDetail({ route, navigation }) {
       );
     }
 
-    // Non-OPEN post
-    if (post.status !== "OPEN") {
+    // ── Post full, non-organizer
+    if (post.status === "FULL" && !isOrganizer) {
       return (
         <View style={styles.rejectedBadge}>
           <Ionicons name="lock-closed" size={18} color={Colors.textTertiary} style={{ marginRight: 6 }} />
-          <Text style={[styles.rejectedText, { color: Colors.textSecondary }]}>
-            {post.status === "FULL" ? "This match is full" : `Post is ${post.status}`}
-          </Text>
+          <Text style={[styles.rejectedText, { color: Colors.textSecondary }]}>This match is full</Text>
         </View>
       );
     }
 
-    // Default CTA: request to join
-    if (!isOrganizer) {
+    // ── Non-OPEN, non-FULL post
+    if (post.status !== "OPEN" && post.status !== "FULL") {
+      return (
+        <View style={styles.rejectedBadge}>
+          <Ionicons name="lock-closed" size={18} color={Colors.textTertiary} style={{ marginRight: 6 }} />
+          <Text style={[styles.rejectedText, { color: Colors.textSecondary }]}>Post is {post.status}</Text>
+        </View>
+      );
+    }
+
+    // ── Organizer: post FULL → team formation
+    if (isOrganizer && post.status === "FULL") {
       return (
         <TouchableOpacity
           style={styles.ctaBtnWrapper}
-          onPress={handleRequestToJoin}
-          disabled={actionLoading}
+          onPress={() => navigation.navigate("TeamFormation", { matchId: post.matchId })}
           activeOpacity={0.85}
         >
           <LinearGradient
@@ -262,12 +293,52 @@ export default function PostDetail({ route, navigation }) {
               <ActivityIndicator color={Colors.textInverse} />
             ) : (
               <>
-                <Ionicons name="person-add" size={20} color={Colors.textInverse} style={{ marginRight: Spacing.sm }} />
-                <Text style={styles.ctaBtnText}>Request to Join Match</Text>
+                <Ionicons name="people" size={20} color={Colors.textInverse} style={{ marginRight: Spacing.sm }} />
+                <Text style={styles.ctaBtnText}>Set Up Teams & Start Match</Text>
               </>
             )}
           </LinearGradient>
         </TouchableOpacity>
+      );
+    }
+
+    // ── Default CTA: request to join (OPEN post, not organizer)
+    if (!isOrganizer) {
+      return (
+        <>
+          <TouchableOpacity
+            style={styles.ctaBtnWrapper}
+            onPress={handleRequestToJoin}
+            disabled={actionLoading}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={Colors.accentGreen}
+              style={styles.ctaBtn}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              {actionLoading ? (
+                <ActivityIndicator color={Colors.textInverse} />
+              ) : (
+                <>
+                  <Ionicons name="person-add" size={20} color={Colors.textInverse} style={{ marginRight: Spacing.sm }} />
+                  <Text style={styles.ctaBtnText}>Request to Join Match</Text>
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.ctaBtnWrapper, { marginTop: Spacing.sm }]}
+            onPress={() => navigation.navigate("PostInquiry", { postId, postTitle: post.title })}
+            activeOpacity={0.85}
+          >
+            <View style={styles.inquiryBtn}>
+              <Ionicons name="chatbubble-ellipses-outline" size={18} color={Colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.inquiryBtnText}>Ask the Organizer</Text>
+            </View>
+          </TouchableOpacity>
+        </>
       );
     }
 
@@ -554,6 +625,18 @@ export default function PostDetail({ route, navigation }) {
               </View>
             ))}
           </>
+        )}
+
+        {/* Organizer: inquiries thread button */}
+        {isOrganizer && (
+          <TouchableOpacity
+            style={[styles.inquiryBtn, { marginHorizontal: Spacing.lg, marginTop: Spacing.sm }]}
+            onPress={() => navigation.navigate("PostInquiry", { postId, postTitle: post.title })}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={18} color={Colors.primary} style={{ marginRight: 6 }} />
+            <Text style={styles.inquiryBtnText}>View Inquiries</Text>
+          </TouchableOpacity>
         )}
 
         {/* Organizer: cancel post */}
@@ -944,6 +1027,23 @@ const styles = StyleSheet.create({
     color: Colors.danger,
     fontWeight: FontWeight.bold,
     fontSize: Typography.body,
+  },
+
+  // Inquiry button
+  inquiryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 46,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: "rgba(0, 217, 245, 0.25)",
+    backgroundColor: "rgba(0, 217, 245, 0.06)",
+  },
+  inquiryBtnText: {
+    color: Colors.primary,
+    fontWeight: FontWeight.bold,
+    fontSize: Typography.bodySmall,
   },
 
   errorTitle: {

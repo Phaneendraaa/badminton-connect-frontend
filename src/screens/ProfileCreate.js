@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import axios from "axios";
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { Colors, Spacing, Radius, Typography, FontWeight, Shadow } from "../theme/tokens";
+import CitySearchPicker from "../components/CitySearchPicker";
 
 export default function ProfileCreate() {
   const navigation = useNavigation();
@@ -29,10 +30,21 @@ export default function ProfileCreate() {
   const [lastName, setLastName] = useState("");
   const [profilePictureUrl, setProfilePictureUrl] = useState("");
   const [genderEnum, setGenderEnum] = useState("MALE");
+  const [homeCity, setHomeCity] = useState("");
 
   const [dob, setDob] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showCityPicker, setShowCityPicker] = useState(false);
+  const [cities, setCities] = useState([]);
   const [uploading, setUploading] = useState(false);
+
+  // Load city list for the picker
+  useEffect(() => {
+    api("/reference/cities")
+      .then((r) => r.json())
+      .then((data) => Array.isArray(data) ? setCities(data) : null)
+      .catch(() => {});
+  }, []);
 
   const formatDate = (date) => {
     return date.toISOString().split("T")[0];
@@ -107,6 +119,7 @@ export default function ProfileCreate() {
           profilePictureUrl,
           dateOfBirth: formatDate(dob),
           genderEnum,
+          homeCity: homeCity || null,
         }),
       });
 
@@ -233,6 +246,25 @@ export default function ProfileCreate() {
             })}
           </View>
 
+          {/* Home City */}
+          <Text style={styles.inputLabel}>Home City (optional)</Text>
+          <TouchableOpacity
+            style={styles.datePickerBtn}
+            onPress={() => setShowCityPicker(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="location-outline"
+              size={20}
+              color={homeCity ? Colors.primary : Colors.textSecondary}
+              style={{ marginRight: Spacing.sm }}
+            />
+            <Text style={[styles.dateText, homeCity && { color: Colors.primary }]}>
+              {homeCity || "Select your city"}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color={Colors.textTertiary} style={{ marginLeft: "auto" }} />
+          </TouchableOpacity>
+
           {/* Submit Button */}
           <TouchableOpacity
             style={styles.buttonWrapper}
@@ -255,6 +287,19 @@ export default function ProfileCreate() {
           <Text style={styles.logoutText}>Cancel & Logout</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* City Picker Modal */}
+      <CitySearchPicker
+        visible={showCityPicker}
+        cities={cities}
+        selectedCity={homeCity || null}
+        onSelect={(city) => {
+          setHomeCity(city || "");
+          setShowCityPicker(false);
+        }}
+        onClose={() => setShowCityPicker(false)}
+        allowAll={false}
+      />
     </LinearGradient>
   );
 }
