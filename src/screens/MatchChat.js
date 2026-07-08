@@ -14,38 +14,26 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { Client } from "@stomp/stompjs";
-import SockJS from "sockjs-client";
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
-import { getAccessToken } from "../utils/authStorage";
+import { useStomp } from "../context/StompContext";
 import { Colors, Spacing, Radius, Typography, FontWeight, Shadow } from "../theme/tokens";
 
-const BASE_URL = "http://10.0.2.2:8082";
 const PAGE_SIZE = 50;
-
-// Connection states
-const STATUS = {
-  CONNECTING: "connecting",
-  CONNECTED: "connected",
-  DISCONNECTED: "disconnected",
-  ERROR: "error",
-};
 
 export default function MatchChat({ route, navigation }) {
   const { matchId } = route.params;
   const { user } = useAuth();
+  const { subscribe, isConnected, clientRef } = useStomp();
 
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [historyError, setHistoryError] = useState(null);
-  const [connStatus, setConnStatus] = useState(STATUS.CONNECTING);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const stompClientRef = useRef(null);
   const flatListRef = useRef(null);
   const currentUserId = user?.userId || user?.id;
 
@@ -89,64 +77,28 @@ export default function MatchChat({ route, navigation }) {
     fetchHistory(0, false);
   }, [fetchHistory]);
 
-  // ── STOMP connection ──
-
-  const connectStomp = useCallback(async () => {
-    const token = await getAccessToken();
-    if (!token) return;
-
-    setConnStatus(STATUS.CONNECTING);
-
-    const client = new Client({
-      webSocketFactory: () => new SockJS(`${BASE_URL}/ws`),
-      connectHeaders: {
-        Authorization: `Bearer ${token}`,
-      },
-      reconnectDelay: 5000,
-      onConnect: () => {
-        setConnStatus(STATUS.CONNECTED);
-
-        client.subscribe(`/topic/match/${matchId}`, (frame) => {
-          try {
-            const incoming = JSON.parse(frame.body);
-            setMessages((prev) => {
-              // Remove any optimistic version of this message
-              const filtered = prev.filter(
-                (m) => !(m._optimistic && m.senderId === incoming.senderId && m.content === incoming.content)
-              );
-              const alreadyExists = filtered.some((m) => m.id === incoming.id);
-              if (alreadyExists) return filtered;
-              return [...filtered, { ...incoming, _confirmed: true }];
-            });
-          } catch (_) {
-            // Malformed frame — ignore
-          }
-        });
-      },
-      onStompError: () => {
-        setConnStatus(STATUS.ERROR);
-      },
-      onDisconnect: () => {
-        setConnStatus(STATUS.DISCONNECTED);
-      },
-    });
-
-    client.activate();
-    stompClientRef.current = client;
-  }, [matchId]);
-
+  // ── STOMP subscription (shared connection from StompContext) ────────────────
+  // Subscribe to the match chat topic using the shared app-level connection.
+  // Incoming messages from other players appear in real time.
   useEffect(() => {
-    connectStomp();
-    return () => {
-      stompClientRef.current?.deactivate();
-    };
-  }, [connectStomp]);
+    const unsub = subscribe(`/topic/match/${matchId}`, (incoming) => {
+      setMessages((prev) => {
+        const filtered = prev.filter(
+          (m) => !(m._optimistic && m.senderId === incoming.senderId && m.content === incoming.content)
+        );
+        const alreadyExists = filtered.some((m) => m.id === incoming.id);
+        if (alreadyExists) return filtered;
+        return [...filtered, { ...incoming, _confirmed: true }];
+      });
+    });
+    return () => unsub();
+  }, [matchId, subscribe]);
 
   // ── Send message ──
 
   const sendMessage = () => {
     const content = inputText.trim();
-    if (!content || connStatus !== STATUS.CONNECTED) return;
+    if (!content || !isConnected) return;
 
     // Optimistic send — show immediately
     const optimisticId = `opt_${Date.now()}`;
@@ -163,9 +115,9 @@ export default function MatchChat({ route, navigation }) {
     setMessages((prev) => [...prev, optimisticMsg]);
     setInputText("");
 
-    // Send via STOMP
+    // Send via shared STOMP client
     try {
-      stompClientRef.current?.publish({
+      clientRef.current?.publish({
         destination: "/app/chat.send",
         body: JSON.stringify({ matchId, content }),
       });
@@ -231,17 +183,8 @@ export default function MatchChat({ route, navigation }) {
     );
   };
 
-  const getConnColor = () => {
-    if (connStatus === STATUS.CONNECTED) return Colors.primary;
-    if (connStatus === STATUS.CONNECTING) return Colors.warning;
-    return Colors.danger;
-  };
-
-  const getConnGlow = () => {
-    if (connStatus === STATUS.CONNECTED) return styles.glowGreen;
-    if (connStatus === STATUS.CONNECTING) return styles.glowOrange;
-    return styles.glowRed;
-  };
+  const getConnColor = () => isConnected ? Colors.primary : Colors.warning;
+  const getConnGlow  = () => isConnected ? styles.glowGreen : styles.glowOrange;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -259,11 +202,7 @@ export default function MatchChat({ route, navigation }) {
             <View style={styles.connRow}>
               <View style={[styles.connDot, { backgroundColor: getConnColor() }, getConnGlow()]} />
               <Text style={styles.connLabel}>
-                {connStatus === STATUS.CONNECTED
-                  ? "Connected"
-                  : connStatus === STATUS.CONNECTING
-                  ? "Connecting…"
-                  : "Disconnected"}
+                {isConnected ? "Connected" : "Connecting…"}
               </Text>
             </View>
           </View>
@@ -345,11 +284,11 @@ export default function MatchChat({ route, navigation }) {
           <TouchableOpacity
             style={styles.sendBtnWrapper}
             onPress={sendMessage}
-            disabled={!inputText.trim() || connStatus !== STATUS.CONNECTED}
+            disabled={!inputText.trim() || !isConnected}
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={(!inputText.trim() || connStatus !== STATUS.CONNECTED) ? [Colors.disabled, Colors.disabled] : Colors.accentGreen}
+              colors={(!inputText.trim() || !isConnected) ? [Colors.disabled, Colors.disabled] : Colors.accentGreen}
               style={styles.sendBtn}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
@@ -358,7 +297,7 @@ export default function MatchChat({ route, navigation }) {
                 name="send"
                 size={18}
                 color={
-                  !inputText.trim() || connStatus !== STATUS.CONNECTED
+                  !inputText.trim() || !isConnected
                     ? Colors.textTertiary
                     : Colors.textInverse
                 }

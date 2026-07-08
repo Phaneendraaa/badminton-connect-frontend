@@ -1,12 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { TouchableOpacity, View, StyleSheet, Text } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Notifications from "expo-notifications";
 
 import AuthProvider, { useAuth } from "./src/context/AuthContext";
+import { StompProvider, useStomp } from "./src/context/StompContext";
 import Home from "./src/screens/Home";
 import Otp from "./src/screens/Otp";
 import Login from "./src/screens/Login";
@@ -28,6 +30,21 @@ import PostInquiry from "./src/screens/PostInquiry";
 import SearchPlayers from "./src/screens/SearchPlayers";
 
 import { Colors, Radius, Shadow } from "./src/theme/tokens";
+
+// ── Notification handler (foreground display) ────────────────────────────
+// Must be set before the navigator mounts so it catches notifications that
+// arrive while the app is in the foreground.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge:  true,
+  }),
+});
+
+// Shared navigation ref — lets the notification tap handler navigate
+// without needing to be inside a React component tree.
+const navigationRef = React.createRef();
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -196,7 +213,21 @@ function MainTabs() {
 
 // ── Root Navigator ───────────────────────────────────────────────────────────
 function RootNavigator() {
-  const { user } = useAuth();
+  const { user, setUnreadCount } = useAuth();
+  const { subscribe } = useStomp();
+
+  // Subscribe to the per-user notifications topic so the badge updates live
+  // the instant any notification is created or marked read, anywhere in the app.
+  useEffect(() => {
+    if (!user?.userId) return;
+    const topic = `/topic/user/${user.userId}/notifications`;
+    const unsub = subscribe(topic, (data) => {
+      if (typeof data.unreadCount === "number") {
+        setUnreadCount(data.unreadCount);
+      }
+    });
+    return () => unsub();
+  }, [user?.userId, subscribe, setUnreadCount]);
 
   if (user) {
     return (
@@ -217,12 +248,57 @@ function RootNavigator() {
 }
 
 export default function App() {
+  // Wire up notification tap → deep-link handler.
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const data = response.notification.request.content.data || {};
+        const nav  = navigationRef.current;
+        if (!nav) return;
+
+        const type    = data.type;
+        const postId  = data.postId;
+        const matchId = data.matchId;
+
+        if (
+          type === "JOIN_REQUEST_RECEIVED" ||
+          type === "JOIN_REQUEST_ACCEPTED" ||
+          type === "JOIN_REQUEST_REJECTED" ||
+          type === "POST_FULL" ||
+          type === "POST_CANCELLED"
+        ) {
+          if (postId) nav.navigate("HomeTab", { screen: "PostDetail", params: { postId } });
+        } else if (type === "NEW_CHAT_MESSAGE") {
+          if (matchId) nav.navigate("HomeTab", { screen: "MatchChat", params: { matchId } });
+        } else if (type === "MATCH_STARTING_SOON") {
+          if (matchId) nav.navigate("ActivityTab", { screen: "MatchPlay", params: { matchId } });
+        }
+      }
+    );
+    return () => subscription.remove();
+  }, []);
+
   return (
     <AuthProvider>
-      <NavigationContainer>
+      <AppWithStomp />
+    </AuthProvider>
+  );
+}
+
+/**
+ * Separate component so we can call useAuth() inside AuthProvider
+ * and pass userId into StompProvider.
+ */
+function AppWithStomp() {
+  const { user } = useAuth();
+  const userId = user?.userId || user?.id;
+
+  return (
+    <StompProvider userId={userId}>
+      <NavigationContainer ref={navigationRef}>
         <RootNavigator />
       </NavigationContainer>
-    </AuthProvider>
+    </StompProvider>
   );
 }
 

@@ -1,56 +1,102 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Image, ActivityIndicator } from "react-native";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  Image,
+  ActivityIndicator,
+  Animated,
+  Easing,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from '@expo/vector-icons';
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
+import { useStomp } from "../context/StompContext";
 import { Colors, Spacing, Radius, Typography, FontWeight, Shadow } from "../theme/tokens";
 
 export default function MatchPlay({ route, navigation }) {
   const { matchId } = route.params;
   const { user } = useAuth();
-  
+  const { subscribe, isConnected } = useStomp();
+
   const [matchDetails, setMatchDetails] = useState(null);
   const [sets, setSets] = useState([]);
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // States for new set input — using integer steppers, not free-text
+  // Score input state
   const [currentSetNumber, setCurrentSetNumber] = useState(1);
   const [teamAScore, setTeamAScore] = useState(0);
   const [teamBScore, setTeamBScore] = useState(0);
   const [saving, setSaving] = useState(false);
   const [editingSetNum, setEditingSetNum] = useState(null);
 
+  // Pulsing animation for Live dot
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // ── Pulse animation for the Live badge ──────────────────────────────────
   useEffect(() => {
-    fetchMatchData();
-    const interval = setInterval(() => {
-      fetchMatchData(false);
-    }, 5000);
-    return () => clearInterval(interval);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 0.3, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.0, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
   }, []);
 
-  const fetchMatchData = async (showLoading = true) => {
-    if (showLoading && loading) setLoading(true);
+  // ── Apply broadcast payload ───────────────────────────────────────────
+  const applyState = useCallback((data) => {
+    setMatchDetails(data.match);
+    setSets(data.sets || []);
+    setPlayers(data.players || []);
+    // Advance set number to max + 1 only when not mid-edit
+    if (data.sets && data.sets.length > 0) {
+      const maxSet = Math.max(...data.sets.map(s => s.setNumber));
+      setCurrentSetNumber(maxSet + 1);
+    }
+  }, []);
+
+  // ── REST: initial load + reconnect fallback ────────────────────────────
+  const fetchMatchData = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const res = await api(`/match-play/${matchId}`);
       if (res.ok) {
         const data = await res.json();
-        setMatchDetails(data.match);
-        setSets(data.sets || []);
-        setPlayers(data.players || []);
-        if (data.sets && data.sets.length > 0) {
-           const maxSet = Math.max(...data.sets.map(s => s.setNumber));
-           setCurrentSetNumber(maxSet + 1);
-        }
+        applyState(data);
       }
     } catch (err) {
-      console.log(err);
+      console.warn('[MatchPlay] REST fetch failed:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [matchId, applyState]);
+
+  useEffect(() => {
+    fetchMatchData(true);
+  }, [fetchMatchData]);
+
+  // ── STOMP subscription (shared connection from StompContext) ─────────────
+  // On mount: subscribe to the match-play topic. Any broadcast replaces local
+  // state wholesale. On reconnect, the shared client re-subscribes automatically
+  // and we do a REST re-fetch to fill any gap missed while offline.
+  useEffect(() => {
+    const unsub = subscribe(`/topic/match-play/${matchId}`, (data) => {
+      applyState(data);
+    });
+    // Re-fetch on (re)connect to cover any gap while disconnected
+    if (isConnected) {
+      fetchMatchData(false);
+    }
+    return () => unsub();
+  }, [matchId, subscribe, applyState, fetchMatchData, isConnected]);
 
   const teamAPlayers = players.filter(p => p.team === "TEAM_A");
   const teamBPlayers = players.filter(p => p.team === "TEAM_B");
@@ -67,18 +113,15 @@ export default function MatchPlay({ route, navigation }) {
       setSaving(true);
       const res = await api(`/match-play/${matchId}/set`, {
         method: "POST",
-        body: JSON.stringify({
-          setNumber: setNum,
-          teamAScore: aScore,
-          teamBScore: bScore
-        })
+        body: JSON.stringify({ setNumber: setNum, teamAScore: aScore, teamBScore: bScore })
       });
       if (res.ok) {
+        // Reset input fields. The broadcast from the server will update the scores.
         setTeamAScore(0);
         setTeamBScore(0);
         setEditingSetNum(null);
-        await fetchMatchData();
-        Alert.alert("Success", `Set ${setNum} saved! ⚡`);
+        // No fetchMatchData() here — the STOMP broadcast handles the UI update
+        // for both this device and the opponent's device simultaneously.
       } else {
         const errData = await res.json().catch(() => ({}));
         Alert.alert("Error", errData.message || "Failed to save set");
@@ -100,8 +143,7 @@ export default function MatchPlay({ route, navigation }) {
           try {
             const res = await api(`/match-play/${matchId}/set/${setNumber}`, { method: "DELETE" });
             if (res.ok) {
-              await fetchMatchData();
-              Alert.alert("Success", `Set ${setNumber} deleted.`);
+              // Broadcast will update UI on both devices
             } else {
               Alert.alert("Error", "Failed to delete set");
             }
@@ -148,7 +190,7 @@ export default function MatchPlay({ route, navigation }) {
       const res = await api(`/match-play/${matchId}/finish`, { method: "POST" });
       if (res.ok) {
         Alert.alert("Match Complete!", "The ELO scores have been adjusted successfully. 🏆");
-        await fetchMatchData();
+        // Broadcast will push the final COMPLETED state to all subscribers
       } else {
         const errData = await res.json().catch(() => ({}));
         Alert.alert("Error", errData.message || "Failed to finish match");
@@ -174,6 +216,12 @@ export default function MatchPlay({ route, navigation }) {
     ? new Date(matchDetails.scheduledAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
     : "";
 
+  // ── Live badge helpers ──────────────────────────────────────────────────
+  // isConnected comes from the shared StompContext — true when the single
+  // app-wide SockJS connection is active and the STOMP CONNECTED frame received.
+  const dotColor  = isConnected ? Colors.primary : Colors.warning;
+  const connLabel = isConnected ? "● Live" : "● Connecting…";
+
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       {/* Header */}
@@ -181,7 +229,17 @@ export default function MatchPlay({ route, navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{matchDetails?.matchName || "Match Play"}</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle} numberOfLines={1}>{matchDetails?.matchName || "Match Play"}</Text>
+          {/* Live connection badge */}
+          <View style={styles.liveRow}>
+            <Animated.View style={[
+              styles.liveDot,
+              { backgroundColor: dotColor, opacity: isConnected ? pulseAnim : 1 }
+            ]} />
+            <Text style={[styles.liveLabel, { color: dotColor }]}>{connLabel}</Text>
+          </View>
+        </View>
         <View style={{ width: 40 }} />
       </View>
 
@@ -535,10 +593,29 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
+  headerCenter: {
+    alignItems: "center",
+  },
   headerTitle: {
     fontSize: Typography.h3,
     fontWeight: FontWeight.bold,
     color: Colors.textPrimary,
+  },
+  liveRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 2,
+  },
+  liveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  liveLabel: {
+    fontSize: 10,
+    fontWeight: FontWeight.bold,
+    letterSpacing: 0.5,
   },
   content: {
     padding: Spacing.lg,

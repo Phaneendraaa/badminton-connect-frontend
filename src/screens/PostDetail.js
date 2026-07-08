@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,12 +14,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
+import { useStomp } from "../context/StompContext";
 import { useFocusEffect } from "@react-navigation/native";
 import { Colors, Spacing, Radius, Typography, FontWeight, Shadow } from "../theme/tokens";
 
 export default function PostDetail({ route, navigation }) {
   const { postId } = route.params;
   const { user } = useAuth();
+  const { subscribe } = useStomp();
 
   const [post, setPost] = useState(null);
   const [myRequest, setMyRequest] = useState(null);
@@ -76,6 +78,19 @@ export default function PostDetail({ route, navigation }) {
   );
 
   const isOrganizer = post && String(post.organizerId) === String(currentUserId);
+
+  // ── Live join-request updates (organizer only) ───────────────────────────────
+  // When someone requests to join (or an existing request changes state),
+  // the backend broadcasts to /topic/post/{postId}/requests.
+  // We re-fetch the full data so slot counts and the pending list stay in sync.
+  useEffect(() => {
+    if (!isOrganizer) return; // Only the organizer needs to watch this
+    const unsub = subscribe(`/topic/post/${postId}/requests`, () => {
+      fetchData();
+    });
+    return () => unsub();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOrganizer, postId, subscribe]);
 
   // ── Actions ──
 

@@ -22,7 +22,7 @@ const PAGE_SIZE = 20;
 
 export default function Home() {
   const navigation = useNavigation();
-  const { user, isNewUser } = useAuth();
+  const { user, isNewUser, unreadCount } = useAuth();
 
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,8 +32,6 @@ export default function Home() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
-  // Badge counts for header icons
-  const [notifUnread, setNotifUnread] = useState(0);
   const [messageUnread, setMessageUnread] = useState(0);
 
   // Filters
@@ -52,21 +50,16 @@ export default function Home() {
 
   const fetchBadgeCounts = async () => {
     try {
-      const [notifRes, threadsRes] = await Promise.all([
-        api("/notifications/unread-count"),
-        api("/match-chat/threads"),
-      ]);
-      if (notifRes.ok) {
-        const d = await notifRes.json();
-        setNotifUnread(d.count || 0);
-      }
+      // Notification unread count comes from AuthContext (updated live via STOMP).
+      // Only fetch the message thread unread count here.
+      const threadsRes = await api("/match-chat/threads");
       if (threadsRes.ok) {
         const threads = await threadsRes.json();
         const total = (threads || []).reduce((sum, t) => sum + (t.unreadCount || 0), 0);
         setMessageUnread(total);
       }
     } catch (e) {
-      // Non-critical — badges just won't show counts if this fails
+      // Non-critical
     }
   };
 
