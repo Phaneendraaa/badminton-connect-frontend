@@ -17,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import api from "../utils/api";
 import { Colors, Spacing, Radius, Typography, FontWeight, Shadow } from "../theme/tokens";
+import CitySearchPicker from "../components/CitySearchPicker";
 
 const Field = ({ label, error, children }) => (
   <View style={styles.fieldGroup}>
@@ -43,7 +44,7 @@ export default function CreatePost({ navigation }) {
 
   // Reference data
   const [cities, setCities] = useState([]);
-  const [showCityDropdown, setShowCityDropdown] = useState(false);
+  const [showCityPicker, setShowCityPicker] = useState(false);
 
   // Track active focus fields for custom glow border
   const [focusedField, setFocusedField] = useState(null);
@@ -273,34 +274,28 @@ export default function CreatePost({ navigation }) {
                   styles.pickerBtn,
                   errors.city && styles.inputWrapError,
                 ]}
-                onPress={() => setShowCityDropdown(!showCityDropdown)}
+                onPress={() => setShowCityPicker(true)}
                 activeOpacity={0.8}
               >
                 <Ionicons name="business-outline" size={20} color={Colors.textSecondary} style={{ marginRight: Spacing.sm }} />
                 <Text style={city ? styles.pickerText : styles.pickerTextPlaceholder}>
                   {city || "Select City"}
                 </Text>
-                <Ionicons name={showCityDropdown ? "chevron-up" : "chevron-down"} size={20} color={Colors.textTertiary} style={{ marginLeft: 'auto' }} />
+                <Ionicons name="chevron-down" size={20} color={Colors.textTertiary} style={{ marginLeft: 'auto' }} />
               </TouchableOpacity>
               
-              {showCityDropdown && (
-                <View style={styles.dropdownContainer}>
-                  {cities.map((c) => (
-                    <TouchableOpacity
-                      key={c}
-                      style={styles.dropdownOption}
-                      onPress={() => {
-                        setCity(c);
-                        setShowCityDropdown(false);
-                        setErrors((prev) => ({ ...prev, city: undefined }));
-                      }}
-                    >
-                      <Text style={[styles.dropdownOptionText, city === c && { color: Colors.primary, fontWeight: 'bold' }]}>{c}</Text>
-                      {city === c && <Ionicons name="checkmark" size={18} color={Colors.primary} />}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+              <CitySearchPicker
+                visible={showCityPicker}
+                cities={cities}
+                selectedCity={city}
+                allowAll={false}
+                onSelect={(selected) => {
+                  setCity(selected);
+                  setShowCityPicker(false);
+                  setErrors((prev) => ({ ...prev, city: undefined }));
+                }}
+                onClose={() => setShowCityPicker(false)}
+              />
             </Field>
 
             {/* City Other */}

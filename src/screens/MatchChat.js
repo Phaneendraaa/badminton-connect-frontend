@@ -61,7 +61,14 @@ export default function MatchChat({ route, navigation }) {
           setMessages(items);
         }
 
-        setHasMore(!data.last);
+        const pageInfo = data.page || {};
+        const isLast = data.last !== undefined
+          ? data.last
+          : (pageInfo.totalPages !== undefined && pageInfo.number !== undefined
+              ? pageInfo.number >= pageInfo.totalPages - 1
+              : true);
+
+        setHasMore(!isLast);
         setPage(pageNum);
       } catch (err) {
         setHistoryError(err.message || "Failed to load messages");

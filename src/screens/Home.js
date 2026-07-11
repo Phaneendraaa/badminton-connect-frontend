@@ -65,7 +65,9 @@ export default function Home() {
 
   // Sync homeCity from profile if not already set in filter
   useEffect(() => {
+    console.log(`[Home] Sync homeCity effect: cityFilter="${cityFilter}", user.homeCity="${user?.homeCity}"`);
     if (!cityFilter && user?.homeCity) {
+      console.log(`[Home] Setting cityFilter to user's homeCity: "${user.homeCity}"`);
       setCityFilter(user.homeCity);
     }
   }, [user?.homeCity]);
@@ -94,6 +96,7 @@ export default function Home() {
 
   const fetchPosts = useCallback(
     async (pageNum = 0, append = false) => {
+      console.log(`[Home] fetchPosts called: pageNum=${pageNum}, append=${append}, cityFilter="${cityFilter}", matchTypeFilter="${matchTypeFilter}"`);
       if (!append) setLoading(true);
       setError(null);
 
@@ -106,7 +109,9 @@ export default function Home() {
         if (cityFilter) params.append("city", cityFilter);
 
         const response = await api(`/match-post/feed?${params}`);
+        console.log(`[Home] fetchPosts API response status: ${response.status}`);
         const data = await response.json().catch(() => ({}));
+        console.log(`[Home] fetchPosts API data keys:`, Object.keys(data), `last:`, data.last, `content length:`, data.content?.length);
 
         if (!response.ok) {
           throw new Error(data.message || "Failed to load open matches");
@@ -119,7 +124,14 @@ export default function Home() {
           setPosts(newItems);
         }
 
-        setHasMore(!data.last);
+        const pageInfo = data.page || {};
+        const isLast = data.last !== undefined
+          ? data.last
+          : (pageInfo.totalPages !== undefined && pageInfo.number !== undefined
+              ? pageInfo.number >= pageInfo.totalPages - 1
+              : true);
+
+        setHasMore(!isLast);
         setPage(pageNum);
       } catch (err) {
         setError(err.message || "Something went wrong");
@@ -134,6 +146,7 @@ export default function Home() {
   );
 
   useEffect(() => {
+    console.log("[Home] useEffect trigger fetchPosts (fetchPosts callback reference changed)");
     fetchPosts(0, false);
   }, [fetchPosts]);
 
@@ -327,10 +340,10 @@ export default function Home() {
               }}
             >
               <Ionicons name="notifications-outline" size={24} color={Colors.textPrimary} />
-              {notifUnread > 0 && (
+              {unreadCount > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>
-                    {notifUnread > 9 ? "9+" : notifUnread}
+                    {unreadCount > 9 ? "9+" : unreadCount}
                   </Text>
                 </View>
               )}

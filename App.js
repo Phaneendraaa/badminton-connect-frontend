@@ -5,7 +5,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import * as Notifications from "expo-notifications";
+import * as ExpoNotifications from "expo-notifications";
 
 import AuthProvider, { useAuth } from "./src/context/AuthContext";
 import { StompProvider, useStomp } from "./src/context/StompContext";
@@ -34,11 +34,11 @@ import { Colors, Radius, Shadow } from "./src/theme/tokens";
 // ── Notification handler (foreground display) ────────────────────────────
 // Must be set before the navigator mounts so it catches notifications that
 // arrive while the app is in the foreground.
-Notifications.setNotificationHandler({
+ExpoNotifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
-    shouldSetBadge:  true,
+    shouldSetBadge: true,
   }),
 });
 
@@ -253,11 +253,11 @@ export default function App() {
     const subscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
         const data = response.notification.request.content.data || {};
-        const nav  = navigationRef.current;
+        const nav = navigationRef.current;
         if (!nav) return;
 
-        const type    = data.type;
-        const postId  = data.postId;
+        const type = data.type;
+        const postId = data.postId;
         const matchId = data.matchId;
 
         if (
